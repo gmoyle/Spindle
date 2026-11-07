@@ -11,9 +11,10 @@
 > 🤖 **AI Development Experiment**: This entire application was built using AI assistance (Warp 2.0 + Claude Code) by someone with zero Swift experience and an Art Degree. [Read the full experiment documentation](./WARP_AI_EXPERIMENT.md) 🎨→👨‍💻
 
 Spindle (formerly **AutoRip2MKV**) is a native macOS app that imports discs into
-your media library automatically. Today it rips DVDs and Blu-rays to MKV and files
-them into Movies and TV Shows folders; music CDs, TV episode naming, and photo discs
-are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
+your media library automatically. It rips DVDs and Blu-rays to MKV and files them
+into Movies and TV Shows folders, and rips music CDs to tagged FLAC in your Music
+folder. TV episode naming, photo discs, and importing from folders, USB drives and
+Apple Photos are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
 
 ## Features
 
@@ -22,6 +23,7 @@ are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-
 - **Fast DVD reads** - Titles are read at full drive speed to local storage, the disc ejects, and encoding runs in the background while the next disc reads
 - **Multi-version discs** - Follows DVD seamless branching, so discs with several cuts of the movie rip as one clean title
 - **Damaged discs** - Unreadable sectors are retried, then skipped (up to a limit) instead of failing the rip
+- **Music CDs** - Identified on MusicBrainz, ripped to FLAC with tags and cover art, filed as `Music/Artist/Album (Year)/01 - Title.flac`
 - **Blu-ray Support** - Via MakeMKV (auto-detected once installed); the app helps you install it, and can update an expired build for you
 - **DVDs need nothing extra** - No MakeMKV, key database, or other tools required for DVD ripping
 - **All tracks captured** - Every audio and subtitle track, tagged with languages from the disc

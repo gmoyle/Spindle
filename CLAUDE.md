@@ -89,6 +89,14 @@ swiftlint lint
      libaacs path (`BluRayDecryptor`, `performBluRayRipping`) is a fallback only.
    - **HD DVD**: `MediaRipper+HDDVD.swift` plus `HDDVDStructureParser`, which is largely
      heuristic.
+   - **Audio CD**: `MediaRipper+AudioCD.swift`. `AudioCDTOC` parses cddafs's `.TOC.plist`
+     (its blocks include the 150-sector lead-in; the struct stores LBAs without it) and
+     computes the MusicBrainz disc ID. `MainViewController.lookupAlbum` resolves the album
+     before queueing (`MusicBrainzProvider`; near matches only if every track length is within
+     3 s). Phase 1 copies each AIFF to `Caches/Spindle/encoding/cd-<discid>/` and fetches the
+     cover; each track is a `PendingEncode` to FLAC (`flacEncodeArguments`) whose output is the
+     final `Music/Artist/Album (Year)/` path, so there's no routing step.
+     `settingsFingerprint` for CDs is just `format: flac`.
 5. **Libraries and metadata**: `LibraryKind` names each library (Movies, TV Shows, Music,
    Photos, Home Videos, Imported Discs); `SettingsManager.libraryRoot(_:)` gives its root, with
    the newer libraries defaulting next to the Movies root. Title lookups go through

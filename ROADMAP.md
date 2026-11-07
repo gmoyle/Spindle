@@ -50,7 +50,11 @@ disc while it's needed, then run staged encodes after eject. Each disc kind adds
   Videos, Imported Discs), each set in Settings
 - **Metadata providers**: one interface for OMDb, TMDB and MusicBrainz
 
-## Phase 2: Music CDs
+## Phase 2: Music CDs ✅
+
+Done, except the review queue for unknown CDs: they're ripped as
+`Unknown Artist/Unknown Album (<disc ID>)` and can be renamed by hand for now.
+Near matches from MusicBrainz are only used when every track length agrees.
 
 - Read the AIFF tracks macOS exposes for a mounted audio CD; use `.TOC.plist`
   for the track layout

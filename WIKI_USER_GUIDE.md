@@ -13,9 +13,10 @@ the [Installation Guide](INSTALLATION.md).
 4. [Plex libraries and routing](#plex-libraries-and-routing)
 5. [DVDs](#dvds)
 6. [Blu-ray and MakeMKV](#blu-ray-and-makemkv)
-7. [Encoding](#encoding)
-8. [Scripts](#scripts)
-9. [Troubleshooting](#troubleshooting)
+7. [Music CDs](#music-cds)
+8. [Encoding](#encoding)
+9. [Scripts](#scripts)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -120,6 +121,30 @@ dialog:
 
 MakeMKV needs the drive to itself. Close MakeMKV's own window and DVD Player before
 inserting a Blu-ray.
+
+## Music CDs
+
+Insert a music CD and Spindle:
+
+1. **Identifies it** on [MusicBrainz](https://musicbrainz.org) from the CD's track
+   layout (its disc ID): album, artist, year, track titles, and which disc of a set
+   it is. If MusicBrainz doesn't know this exact pressing, a suggested match is used
+   only when every track length agrees with the CD.
+2. **Reads the tracks** to local storage (about 40 seconds a track) and ejects.
+3. **Encodes each track to FLAC** in the background, tagged (title, artist, album,
+   album artist, year, track and disc numbers, MusicBrainz IDs) with the front cover
+   from the [Cover Art Archive](https://coverartarchive.org) embedded.
+4. **Files it** in the Music folder (Settings → Output & Routing) as
+   `Artist/Album (Year)/01 - Title.flac`, with `Disc 2/` folders for multi-disc sets
+   and a `cover.jpg` in the album folder. Tracks by a guest artist are named
+   `05 - Guest - Title.flac`.
+
+A CD MusicBrainz doesn't know is ripped as `Unknown Artist/Unknown Album (…)/` with
+tracks named `Track 01` and so on, so nothing is lost; you can rename it afterwards.
+You can add the CD to MusicBrainz so it's recognized next time.
+
+Video settings (codec, quality) don't affect CDs, so changing them doesn't re-rip
+your CDs.
 
 ## Encoding
 

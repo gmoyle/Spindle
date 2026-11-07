@@ -212,8 +212,13 @@ extension MainViewController: ConversionQueueDelegate {
         queueEncodePhase = true
         progressIndicator.doubleValue = 0
         progressStatusLabel.isHidden = false
-        progressStatusLabel.stringValue = "Encoding to MKV..."
+        progressStatusLabel.stringValue = "Encoding to \(encodeFormat(forJob: jobId))..."
         setDiscStatus("Encoding…")
+    }
+
+    /// "FLAC" for a music CD, "MKV" for video.
+    private func encodeFormat(forJob jobId: UUID) -> String {
+        conversionQueue.getJob(id: jobId)?.mediaType == .audioCD ? "FLAC" : "MKV"
     }
 
     func queueDidCompleteConversion(jobId: UUID, outputFiles: [String]) {
@@ -246,7 +251,7 @@ extension MainViewController: ConversionQueueDelegate {
             // Encode progress: a percentage of the title's runtime, not disc bytes
             let pct = min(max(progress, 0), 1)
             progressIndicator.doubleValue = pct * 100.0
-            progressStatusLabel.stringValue = "Encoding to MKV... \(Int(pct * 100))%"
+            progressStatusLabel.stringValue = "Encoding to \(encodeFormat(forJob: jobId))... \(Int(pct * 100))%"
         } else {
             mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 0)
         }

@@ -547,6 +547,8 @@ extension MediaRipper {
             totalDuration = title.duration
         case .blurayPlaylist(let playlist):
             totalDuration = playlist.duration
+        case .audioTrack(let duration):
+            totalDuration = duration
         }
 
         // While the disc is still being read, the feed loop reports sector-based
@@ -573,5 +575,6 @@ extension MediaRipper {
     enum MediaItem {
         case dvdTitle(DVDTitle)
         case blurayPlaylist(BluRayPlaylist)
+        case audioTrack(duration: Double)
     }
 }
