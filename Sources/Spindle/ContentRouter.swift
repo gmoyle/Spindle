@@ -10,6 +10,9 @@ import Foundation
 ///    Either way the rip itself never blocks.
 ///  - **Manual**: the review UI calls `route(folder:to:)` when the user confirms
 ///    a queued item's Movie/TV choice.
+/// Files a TV rip's episodes: folder, disc name, disc identity, titles, strict.
+typealias TVFiling = (String, String, String?, [RippedTitle], Bool) -> TVLibraryFiler.Outcome
+
 enum ContentRouter {
 
     /// Confidence at or above this is considered safe to auto-route without asking.
@@ -44,13 +47,32 @@ enum ContentRouter {
                                    discName: String,
                                    discIdentity: String? = nil,
                                    titleDurationsSeconds: [Int],
+                                   rippedTitles: [RippedTitle] = [],
                                    settings: SettingsManager = .shared,
-                                   queue: PendingRoutingQueue = .shared) -> String {
+                                   queue: PendingRoutingQueue = .shared,
+                                   tvFiler: TVFiling = TVLibraryFiler.defaultFiler) -> String {
         guard settings.contentRoutingEnabled else {
             return "Content routing is off — leaving rip in place."
         }
 
         let classification = ContentTypeClassifier.classify(titleDurationsSeconds: titleDurationsSeconds)
+
+        // A TV season: name and file each episode. Its own checks (the series is
+        // found, the episode numbers are known) decide; if it isn't sure, the
+        // rip waits for review with the reason.
+        if settings.autoRouteHighConfidence, classification.type == .tvShow,
+           rippedTitles.contains(where: \.isEpisode) {
+            switch tvFiler(folderPath, discName, discIdentity, rippedTitles, true) {
+            case .filed(let summary, _):
+                return summary
+            case .unsure(let reason):
+                queue.enqueue(PendingRouting(
+                    discName: discName, discIdentity: discIdentity, folderPath: folderPath,
+                    guessedType: .tvShow, confidence: classification.confidence,
+                    rippedTitles: rippedTitles, note: reason))
+                return "Queued \(discName) for review: \(reason)"
+            }
+        }
 
         // High-confidence, known type, auto-route enabled → move now.
         if settings.autoRouteHighConfidence,
@@ -64,7 +86,8 @@ enum ContentRouter {
                 // Fall through to queueing so a misconfigured root doesn't lose the rip.
                 queue.enqueue(PendingRouting(
                     discName: discName, discIdentity: discIdentity, folderPath: folderPath,
-                    guessedType: classification.type, confidence: classification.confidence))
+                    guessedType: classification.type, confidence: classification.confidence,
+                    rippedTitles: rippedTitles))
                 return "Couldn't auto-route \(discName) (\(error.localizedDescription)) — queued for review."
             }
         }
@@ -72,7 +95,8 @@ enum ContentRouter {
         // Ambiguous or auto-route disabled → defer to the user's review queue.
         queue.enqueue(PendingRouting(
             discName: discName, discIdentity: discIdentity, folderPath: folderPath,
-            guessedType: classification.type, confidence: classification.confidence))
+            guessedType: classification.type, confidence: classification.confidence,
+            rippedTitles: rippedTitles))
         return "Queued \(discName) for Movie/TV review (guess: \(classification.type.displayName), "
             + "confidence \(Int(classification.confidence * 100))%)."
     }
@@ -133,6 +157,24 @@ enum ContentRouter {
         return destination
     }
 
+    /// The user chose a type in the review window. Choosing TV Show for a rip
+    /// with episodes names them as best it can; otherwise (or if that fails) the
+    /// folder moves into the library root as it is.
+    static func applyReviewChoice(_ item: PendingRouting, as type: ContentType,
+                                  tvFiler: TVFiling = TVLibraryFiler.defaultFiler) throws -> String {
+        if type == .tvShow, let titles = item.rippedTitles, titles.contains(where: \.isEpisode) {
+            switch tvFiler(item.folderPath, item.discName, item.discIdentity, titles, false) {
+            case .filed(let summary, _):
+                return summary
+            case .unsure(let reason):
+                Logger.shared.log("Couldn't name \(item.discName)'s episodes (\(reason)); moving the folder as is.",
+                                  level: .warning, category: .general)
+            }
+        }
+        let destination = try route(folderPath: item.folderPath, to: type, discIdentity: item.discIdentity)
+        return "Routed \(item.discName) to \(type.displayName)s: \(destination)"
+    }
+
     /// Maps a just-routed staging folder path → its final library location, so a
     /// registry write that happens after the move can record the real path.
     private static var recentMoves: [String: String] = [:]
@@ -141,6 +183,27 @@ enum ContentRouter {
     private static func recordMove(from source: String, to destination: String) {
         recentMovesLock.lock(); defer { recentMovesLock.unlock() }
         recentMoves[source] = destination
+    }
+
+    /// For filers that move a rip's files themselves (TV episodes): where the
+    /// rip folder's contents went.
+    static func recordFolderMove(from source: String, to destination: String) {
+        recordMove(from: source, to: destination)
+    }
+
+    /// Individual files that were moved and renamed (TV episodes), so the queue
+    /// records their final paths.
+    private static var recentFileMoves: [String: String] = [:]
+
+    static func recordFileMove(from source: String, to destination: String) {
+        recentMovesLock.lock(); defer { recentMovesLock.unlock() }
+        recentFileMoves[source] = destination
+    }
+
+    /// Final path of a file a filer moved, if one did. Consumed on read.
+    static func finalFileLocation(for path: String) -> String? {
+        recentMovesLock.lock(); defer { recentMovesLock.unlock() }
+        return recentFileMoves.removeValue(forKey: path)
     }
 
     /// Final location a staging path was routed to, if routing moved it. Consumed

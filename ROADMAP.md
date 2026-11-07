@@ -67,15 +67,18 @@ Near matches from MusicBrainz are only used when every track length agrees.
 - Unknown CDs: rip as `Unknown Artist/Unknown Album (date)` and add to the review
   queue
 
-## Phase 3: TV series
+## Phase 3: TV series ✅
 
-- Switch movie and TV lookups to TMDB (keep OMDb as a fallback)
-- Find the series and season; map the disc's titles to episodes by order and
-  duration
-- Remember series across discs, so disc 2 continues where disc 1 stopped
-- Skip "play all" titles that join every episode
-- File as `TV Shows/Show/Season 01/Show - S01E05.mkv`; unsure mappings go to
-  the review queue with proposed episode numbers
+- ✅ Movie and TV lookups use TMDB when you add a key, with OMDb as the fallback
+- ✅ Find the series and season from the disc label; map the disc's titles to
+  episodes in disc order
+- ✅ Remember series across discs, so disc 2 continues where disc 1 stopped
+- ✅ Skip "play all" titles that join every episode
+- ✅ File as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`;
+  unsure rips go to the review queue with the reason
+- Not yet: editing the proposed episode numbers in the review window, using
+  episode runtimes to place a disc whose earlier discs weren't imported, and
+  splitting a title that holds two episodes
 
 ## Phase 4: Photo, home-video and data discs
 

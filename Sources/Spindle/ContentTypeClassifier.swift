@@ -99,7 +99,7 @@ enum ContentTypeClassifier {
     /// The largest subset of `values` that are all within `tolerance` of a common
     /// center — i.e. the biggest group of "same length" titles. Values must be
     /// pre-sorted ascending.
-    private static func largestSimilarCluster(_ values: [Double], tolerance: Double) -> [Double] {
+    static func largestSimilarCluster(_ values: [Double], tolerance: Double) -> [Double] {
         guard !values.isEmpty else { return [] }
         var best: [Double] = []
         // Sliding window: for each start, extend while the span stays within

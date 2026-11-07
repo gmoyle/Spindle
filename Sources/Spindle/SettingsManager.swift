@@ -46,6 +46,7 @@ class SettingsManager {
         // Plex-style content routing (Movies vs. TV Shows destinations)
         static let moviesRootDirectory = "moviesRootDirectory"
         static let tvShowsRootDirectory = "tvShowsRootDirectory"
+        static let tmdbAPIKey = "tmdbAPIKey"
         static let contentRoutingEnabled = "contentRoutingEnabled"
         static let autoRouteHighConfidence = "autoRouteHighConfidence"
     }
@@ -83,6 +84,13 @@ class SettingsManager {
     var tvShowsRootDirectory: String {
         get { userDefaults.string(forKey: Keys.tvShowsRootDirectory) ?? Self.defaultTVShowsRoot }
         set { userDefaults.set(newValue, forKey: Keys.tvShowsRootDirectory) }
+    }
+
+    /// The user's own TMDB API key or read access token, for TV episode names and
+    /// movie lookups. Empty means OMDb only.
+    var tmdbAPIKey: String {
+        get { (userDefaults.string(forKey: Keys.tmdbAPIKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines) }
+        set { userDefaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Keys.tmdbAPIKey) }
     }
 
     /// Auto-route rips the classifier is confident about, so only ambiguous ones

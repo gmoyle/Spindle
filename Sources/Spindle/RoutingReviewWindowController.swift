@@ -139,20 +139,29 @@ final class RoutingReviewWindowController: NSWindowController {
     }
 
     @objc private func applyChoices() {
-        var moved = 0
-        var failures: [String] = []
-        for item in items {
-            let type = choices[item.id] ?? .movie
-            do {
-                _ = try ContentRouter.route(folderPath: item.folderPath, to: type,
-                                             discIdentity: item.discIdentity)
-                queue.remove(id: item.id)
-                choices[item.id] = nil
-                moved += 1
-            } catch {
-                failures.append("\(item.discName): \(error.localizedDescription)")
+        // Filing TV episodes looks the series up online, so it runs off the
+        // main thread; the window updates when every choice is applied.
+        let decisions = items.map { ($0, choices[$0.id] ?? .movie) }
+        statusLabel.stringValue = "Moving \(decisions.count) rip\(decisions.count == 1 ? "" : "s")..."
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var moved = 0
+            var failures: [String] = []
+            for (item, type) in decisions {
+                do {
+                    let status = try ContentRouter.applyReviewChoice(item, as: type)
+                    Logger.shared.log(status, level: .info, category: .general)
+                    self?.queue.remove(id: item.id)
+                    moved += 1
+                } catch {
+                    failures.append("\(item.discName): \(error.localizedDescription)")
+                }
             }
+            DispatchQueue.main.async { self?.finishApplying(moved: moved, failures: failures) }
         }
+    }
+
+    private func finishApplying(moved: Int, failures: [String]) {
+        for id in choices.keys where !queue.items.contains(where: { $0.id == id }) { choices[id] = nil }
         reload()
         tableView.reloadData()
         updateStatus()
@@ -187,7 +196,9 @@ extension RoutingReviewWindowController: NSTableViewDataSource, NSTableViewDeleg
 
         switch id {
         case "disc":
-            return NSTextField(labelWithString: item.discName)
+            let label = NSTextField(labelWithString: item.discName)
+            label.toolTip = item.note
+            return label
         case "guess":
             let pct = Int(item.confidence * 100)
             let text = item.guessedType == .unknown

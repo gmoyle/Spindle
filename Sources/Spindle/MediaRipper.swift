@@ -73,6 +73,8 @@ class MediaRipper {
         let discName: String
         let discIdentity: String?
         let titleDurationsSeconds: [Int]
+        /// The titles ripped, in disc order (a TV disc's episodes and extras).
+        var rippedTitles: [RippedTitle] = []
     }
     var routeAfterEncodes: PendingRoute?
 

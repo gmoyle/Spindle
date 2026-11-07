@@ -12,9 +12,9 @@
 
 Spindle (formerly **AutoRip2MKV**) is a native macOS app that imports discs into
 your media library automatically. It rips DVDs and Blu-rays to MKV and files them
-into Movies and TV Shows folders, and rips music CDs to tagged FLAC in your Music
-folder. TV episode naming, photo discs, and importing from folders, USB drives and
-Apple Photos are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
+into Movies and TV Shows folders with each TV episode named, and rips music CDs to
+tagged FLAC in your Music folder. Photo discs, and importing from folders, USB drives
+and Apple Photos, are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
 
 ## Features
 
@@ -23,6 +23,7 @@ Apple Photos are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup*
 - **Fast DVD reads** - Titles are read at full drive speed to local storage, the disc ejects, and encoding runs in the background while the next disc reads
 - **Multi-version discs** - Follows DVD seamless branching, so discs with several cuts of the movie rip as one clean title
 - **Damaged discs** - Unreadable sectors are retried, then skipped (up to a limit) instead of failing the rip
+- **TV seasons** - Every episode ripped (not the "play all" title), named from TMDB or OMDb, filed as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`; disc 2 picks up where disc 1 stopped
 - **Music CDs** - Identified on MusicBrainz, ripped to FLAC with tags and cover art, filed as `Music/Artist/Album (Year)/01 - Title.flac`
 - **Blu-ray Support** - Via MakeMKV (auto-detected once installed); the app helps you install it, and can update an expired build for you
 - **DVDs need nothing extra** - No MakeMKV, key database, or other tools required for DVD ripping
@@ -99,7 +100,7 @@ With the default settings, ripping is hands-free — insert a disc and walk away
 The main window shows the queue and live progress (disc-read size, then encode
 percentage). The app handles everything automatically:
 - ✅ FFmpeg found or downloaded automatically
-- ✅ Drive detection, disc identification (OMDb), and CSS/AACS decryption
+- ✅ Drive detection, disc identification (TMDB or OMDb), and CSS/AACS decryption
 - ✅ Auto-deinterlace of interlaced (NTSC) sources
 - ✅ All audio and subtitle tracks captured, with language labels
 - ✅ Conversion to MKV, with Plex-style `Movie (Year)` naming

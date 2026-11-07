@@ -17,10 +17,14 @@ extension MediaRipper {
     /// Name a chosen title's output and clear stale output/staging from an
     /// interrupted earlier run.
     func planDVDTitle(_ title: DVDTitle, index: Int, totalTitles: Int,
-                      configuration: RippingConfiguration, outputDirectory: String) -> DVDTitlePlan {
+                      configuration: RippingConfiguration, outputDirectory: String,
+                      isTVEpisode: Bool = false) -> DVDTitlePlan {
         let titleName = determineTitleName(title: title, titleIndex: index, totalTitles: totalTitles)
         let outputFileName: String
-        if let plexBase = plexBaseName(from: configuration) {
+        if isTVEpisode {
+            // Renamed to "Show - S01E02 - Title" when filed; a movie name would mislead.
+            outputFileName = String(format: "Title %02d.mkv", title.number)
+        } else if let plexBase = plexBaseName(from: configuration) {
             // Main feature is "<Movie (Year)>.mkv" so Plex matches it directly;
             // any extra titles get a distinguishing suffix
             outputFileName = index == 0 ? "\(plexBase).mkv" : "\(plexBase) - \(titleName).mkv"

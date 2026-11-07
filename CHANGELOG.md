@@ -8,10 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### ✨ Renamed to Spindle
-- **AutoRip2MKV is now Spindle**, as it grows from a DVD/Blu-ray ripper into a disc-to-library importer (music CDs, TV episodes and photo discs are planned; see `ROADMAP.md`).
+- **AutoRip2MKV is now Spindle**, as it grows from a DVD/Blu-ray ripper into a disc-to-library importer (music CDs and TV episodes now; photo discs are planned, see `ROADMAP.md`).
 - The app, its bundle ID (`com.gmoyle.spindle`), data folder (`~/Library/Application Support/Spindle`), cache folder and DMG use the new name.
 - On first launch, settings, rip history, logs and a downloaded ffmpeg are moved over from AutoRip2MKV, so already-ripped discs are still recognized. macOS asks for disc access again, because the bundle ID changed.
 - Pre/post-processing scripts get `SPINDLE_*` environment variables instead of `AUTORIP_*`.
+
+### 📺 TV series
+- **TV season discs are ripped episode by episode and named**: Spindle recognizes a season disc from its title lengths, rips every episode (a DVD used to rip only the longest title, and a Blu-ray skipped anything under an hour), skips the "play all" title, and keeps extras only with bonus features on.
+- The series and season come from the disc label (`THE_OFFICE_S2_D3`, `FIREFLY_D1`) and a TMDB or OMDb lookup. Episodes are filed as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`, extras in the show's `Featurettes` folder.
+- **Disc 2 continues where disc 1 stopped**: Spindle remembers each show's series and which episodes each disc held.
+- When it isn't sure (the show isn't found, disc 2 arrives before disc 1, the label doesn't say which season), the rip waits under **Review Rips** with the reason. Choosing **TV Show** there names the episodes with a best guess.
+- **TMDB**: add your own free key in Settings → Output & Routing for episode lists that follow the discs' order, and for movie lookups. Without one, OMDb is used (its episode order is the broadcast order, which differs from the DVDs for some shows).
 
 ### 🎵 Music CDs
 - **Insert a music CD and it lands in your Music library**: identified on MusicBrainz by its disc ID, read to local storage (about 40 seconds a track), ejected, then encoded to FLAC in the background, with full tags and the front cover from the Cover Art Archive embedded.

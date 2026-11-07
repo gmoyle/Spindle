@@ -39,28 +39,60 @@ extension MediaRipper {
         let backend = MakeMKVBackend(isCancelled: { [weak self] in self?.shouldCancel ?? false })
         self.makemkvBackend = backend
 
-        // Capture the disc's title durations up front (drive is idle here) to
-        // classify movie vs. TV for content routing after the rip. Best-effort:
-        // an empty result just yields an "unknown" guess routed to review.
-        let titleDurations: [Int] = SettingsManager.shared.contentRoutingEnabled
-            ? backend.scanTitleDurations(for: blurayPath)
+        // Capture the disc's titles up front (drive is idle here) to classify
+        // movie vs. TV. Best-effort: none just yields an "unknown" guess.
+        let scanned: [MakeMKVBackend.Title] = SettingsManager.shared.contentRoutingEnabled
+            ? ((try? backend.scanTitles(for: blurayPath)) ?? [])
             : []
+        let titleDurations = scanned.compactMap(\.durationSeconds)
+        let tvSelection = Self.tvEpisodeSelection(for: scanned)
 
-        let outputFiles: [String]
+        var finishedFiles: [String]
+        var rippedTitles: [RippedTitle] = []
         do {
-            outputFiles = try backend.rip(
-                discPath: blurayPath,
-                outputDirectory: organizedOutputDirectory,
-                minLengthSeconds: max(minLength, 1),
-                onStatus: { [weak self] status in
-                    self?.delegate?.mediaRipperDidUpdateStatus(status)
-                },
-                onProgress: { [weak self] progress in
-                    DispatchQueue.main.async {
-                        self?.delegate?.mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 1)
-                    }
+            if let tv = tvSelection {
+                // A TV season: each episode is its own title, ripped one at a
+                // time so "play all" (every episode again) is skipped.
+                let chosen = (tv.episodes + (configuration.ripBonusFeatures ? tv.extras : [])).sorted()
+                Logger.shared.log("TV Blu-ray: episodes are MakeMKV titles \(tv.episodes.map { scanned[$0].index }), "
+                                  + "play-all \(tv.playAll.map { scanned[$0].index })",
+                                  level: .info, category: .blurayRipping)
+                finishedFiles = []
+                for (position, item) in chosen.enumerated() {
+                    let title = scanned[item]
+                    delegate?.mediaRipperDidUpdateStatus("Ripping title \(position + 1) of \(chosen.count)...")
+                    let files = try backend.rip(
+                        discPath: blurayPath, outputDirectory: organizedOutputDirectory,
+                        minLengthSeconds: 0, titleSpec: String(title.index),
+                        onStatus: { [weak self] status in self?.delegate?.mediaRipperDidUpdateStatus(status) },
+                        onProgress: { [weak self] progress in
+                            let overall = (Double(position) + progress) / Double(chosen.count)
+                            DispatchQueue.main.async {
+                                self?.delegate?.mediaRipperDidUpdateProgress(overall, currentItem: nil, totalItems: 1)
+                            }
+                        })
+                    let suffix = String(format: "_t%02d.mkv", title.index)
+                    guard let file = files.first(where: { $0.hasSuffix(suffix) }) ?? files.first else { continue }
+                    finishedFiles.append(file)
+                    rippedTitles.append(RippedTitle(path: file, durationSeconds: Double(title.durationSeconds ?? 0),
+                                                    isEpisode: tv.episodes.contains(item)))
                 }
-            )
+                guard !finishedFiles.isEmpty else { throw MakeMKVBackend.MakeMKVError.noTitlesRipped }
+            } else {
+                finishedFiles = try backend.rip(
+                    discPath: blurayPath,
+                    outputDirectory: organizedOutputDirectory,
+                    minLengthSeconds: max(minLength, 1),
+                    onStatus: { [weak self] status in
+                        self?.delegate?.mediaRipperDidUpdateStatus(status)
+                    },
+                    onProgress: { [weak self] progress in
+                        DispatchQueue.main.async {
+                            self?.delegate?.mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 1)
+                        }
+                    }
+                )
+            }
         } catch {
             self.makemkvBackend = nil
             Logger.shared.logError(error, context: "MakeMKV Blu-ray rip failed", category: .blurayRipping)
@@ -68,11 +100,11 @@ extension MediaRipper {
         }
 
         self.makemkvBackend = nil
+        let outputFiles = finishedFiles
 
         // Rename MakeMKV's title files to Plex-style names when possible. MakeMKV
         // writes e.g. "Disc_title_t00.mkv"; the largest is the main feature.
-        var finishedFiles = outputFiles
-        if let plexBase = plexBaseName(from: configuration), let main = outputFiles.first {
+        if tvSelection == nil, let plexBase = plexBaseName(from: configuration), let main = outputFiles.first {
             let target = organizedOutputDirectory.appending("/\(plexBase).mkv")
             if main != target {
                 try? FileManager.default.removeItem(atPath: target)
@@ -94,7 +126,8 @@ extension MediaRipper {
             folderPath: organizedOutputDirectory,
             discName: discName,
             discIdentity: DiscIdentity.compute(forDiscAt: blurayPath),
-            titleDurationsSeconds: titleDurations)
+            titleDurationsSeconds: titleDurations,
+            rippedTitles: rippedTitles)
         delegate?.mediaRipperDidUpdateStatus(routeStatus)
         Logger.shared.log(routeStatus, level: .info, category: .blurayRipping)
 
@@ -103,6 +136,12 @@ extension MediaRipper {
             self.delegate?.mediaRipperDidComplete()
             self.isRipping = false
         }
+    }
+
+    /// The episodes of a TV season Blu-ray (indices into `titles`), or nil.
+    static func tvEpisodeSelection(for titles: [MakeMKVBackend.Title]) -> TVEpisodeSelection? {
+        guard !titles.isEmpty else { return nil }
+        return TVEpisodeSelection.select(durationsSeconds: titles.map { Double($0.durationSeconds ?? 0) })
     }
 
     func performBluRayRipping(blurayPath: String, configuration: RippingConfiguration) throws {
