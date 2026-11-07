@@ -36,6 +36,10 @@ recorded in. A folder on a drive or NAS that isn't connected still counts as rip
 | **Auto-route confident guesses** | On | Move confident guesses straight away. Unsure rips wait under **Review Rips** in the main window, where you choose Movie or TV for each |
 | **Movies Folder** | `~/Plex/Movies` | Library folder for movies |
 | **TV Shows Folder** | `~/Plex/TVShows` | Library folder for TV seasons |
+| **Music Folder** | Next to the Movies folder (`…/Music`) | Where music CDs are ripped to, as `Artist/Album (Year)/` |
+| **Photos Folder** | Not set | For photo discs (coming); asked the first time one is inserted |
+| **Home Videos Folder** | Next to the Movies folder | For camcorder and home-made DVDs (coming) |
+| **Imported Discs Folder** | Next to the Movies folder | For other data discs (coming) |
 
 Library folders can be on a NAS. Moves to another volume copy each file under a hidden
 name and rename it when complete, so Plex never picks up a partial file. Ripping the

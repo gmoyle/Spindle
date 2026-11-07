@@ -61,6 +61,9 @@ class MediaRipper {
     /// Finished files written directly by a backend with no separate encode phase
     /// (MakeMKV). The queue records these the same way it records finished encodes.
     var directOutputFiles: [String] = []
+    /// Staging folders a rip made for itself (an audio CD's tracks and cover),
+    /// removed by the queue once the encodes are done or dropped.
+    var stagingDirectoriesToRemove: [String] = []
 
     /// Set by rippers whose files land only after the encode phase (DVD), so
     /// the queue can route the finished folder to the Movies/TV root once the
@@ -85,8 +88,14 @@ class MediaRipper {
             try? FileManager.default.removeItem(atPath: encode.sourcePath)
             try? FileManager.default.removeItem(atPath: encode.stagingPath)
         }
+        removeStagingDirectories()
         pendingEncodes.removeAll()
     }
+    func removeStagingDirectories() {
+        for path in stagingDirectoriesToRemove { try? FileManager.default.removeItem(atPath: path) }
+        stagingDirectoriesToRemove.removeAll()
+    }
+
 
     /// Run one prepared encode to completion (blocking). Returns true when ffmpeg
     /// exits cleanly. The decrypted source is deleted either way; on success the
@@ -110,7 +119,8 @@ class MediaRipper {
         }
         encode.process = process
         activeFFmpegProcess = process
-        delegate?.mediaRipperDidUpdateStatus("Encoding title \(encode.titleNumber) (\(encode.itemIndex + 1) of \(encode.totalItems))...")
+        delegate?.mediaRipperDidUpdateStatus(
+            "Encoding \(encode.itemNoun) \(encode.titleNumber) (\(encode.itemIndex + 1) of \(encode.totalItems))...")
 
         // Drains stderr (progress lines) until ffmpeg exits and closes it.
         let stderrTail = monitorFFmpegProgress(pipe: stderrPipe, mediaItem: encode.mediaItem,
@@ -158,6 +168,8 @@ class MediaRipper {
     var hardwareAcceleration: Bool = false
     // Rip bonus features too, not just the main feature (SettingsManager.ripBonusFeatures)
     var ripBonusFeatures: Bool = false
+    // Audio CD: the album looked up before queueing (nil: look it up during the rip)
+    var album: AlbumRelease? = nil
 
         enum VideoCodec {
             case h264, h265, av1, vp9
@@ -276,7 +288,10 @@ class MediaRipper {
             try withRetries(label: "HD DVD", category: .general, delaySeconds: 0) {
                 try performHDDVDRippingWorkflow(hddvdPath: mediaPath, configuration: configuration)
             }
-        case .audioCD, .photoDisc, .dataDisc:
+        case .audioCD:
+            // No withRetries: a retry would queue every track's encode twice.
+            try performAudioCDRipping(cdPath: mediaPath, configuration: configuration)
+        case .photoDisc, .dataDisc:
             throw MediaRipperError.importNotSupportedYet(currentMediaType)
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
@@ -345,6 +360,18 @@ final class PendingEncode {
     let totalItems: Int
     /// Set while the encode runs, for cancellation.
     var process: Process?
+
+    /// "track" for a CD track, "title" for a video title, for status messages.
+    var itemNoun: String {
+        if case .audioTrack = mediaItem { return "track" }
+        return "title"
+    }
+
+    /// What the encode produces, for the progress label: "FLAC" or "MKV".
+    var formatName: String {
+        if case .audioTrack = mediaItem { return "FLAC" }
+        return "MKV"
+    }
 
     init(ffmpegPath: String, arguments: [String], sourcePath: String, outputPath: String,
          stagingPath: String, titleNumber: Int, mediaItem: MediaRipper.MediaItem,

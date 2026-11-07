@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On first launch, settings, rip history, logs and a downloaded ffmpeg are moved over from AutoRip2MKV, so already-ripped discs are still recognized. macOS asks for disc access again, because the bundle ID changed.
 - Pre/post-processing scripts get `SPINDLE_*` environment variables instead of `AUTORIP_*`.
 
+### 🎵 Music CDs
+- **Insert a music CD and it lands in your Music library**: identified on MusicBrainz by its disc ID, read to local storage (about 40 seconds a track), ejected, then encoded to FLAC in the background, with full tags and the front cover from the Cover Art Archive embedded.
+- Filed as `Music/Artist/Album (Year)/01 - Title.flac`, with `Disc N/` folders for multi-disc sets and `cover.jpg` in the album folder.
+- When MusicBrainz doesn't know the exact pressing, a suggested album is used only if every track length matches; otherwise the CD rips as `Unknown Artist/Unknown Album (…)`.
+- Video settings don't affect CDs, so changing them doesn't re-rip your CDs.
+- **Start Ripping** works for Blu-rays and CDs. It used to accept only discs with a `VIDEO_TS` folder.
+
 ### 🧱 Groundwork for new disc kinds
 - **Disc detection by contents**: one classifier decides what a disc is: DVD, Blu-ray (and UHD), HD DVD, audio CD, photo disc or data disc. Photo and data discs count only on optical media, so a USB stick or camera card is never imported. Audio CDs, photo discs and data discs are recognized and noted in the log, but not imported yet.
 - **Library folders per kind**: Settings → Output & Routing has Music, Photos, Home Videos and Imported Discs folders. Unless you change them, they sit next to your Movies folder (e.g. `/Volumes/Media/Music`). Photos stays unset, so the first photo disc can ask where photos go.

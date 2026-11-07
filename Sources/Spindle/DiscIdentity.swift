@@ -24,6 +24,11 @@ enum DiscIdentity {
     /// Blu-ray). Returns nil if no recognizable structure is found.
     static func fingerprint(forDiscAt mountPath: String,
                             fileManager: FileManager = .default) -> String? {
+        // Audio CDs all mount as "Audio CD": their track layout tells them apart,
+        // as the same MusicBrainz disc ID that identifies the album.
+        if let toc = AudioCDTOC.read(fromVolumeAt: mountPath) {
+            return "mb-\(toc.musicBrainzDiscID)"
+        }
         let sizes = videoFileSizes(forDiscAt: mountPath, fileManager: fileManager)
         guard !sizes.isEmpty else { return nil }
         // Sort so ordering differences don't change the fingerprint. Use count,

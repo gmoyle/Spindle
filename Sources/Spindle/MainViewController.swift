@@ -50,6 +50,8 @@ class MainViewController: NSViewController {
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
     internal var resolvedDiscTitle: String? = nil
+    /// The album for an audio CD in the drive, once MusicBrainz has answered.
+    internal var resolvedAlbum: AlbumRelease? = nil
 
     // DVD Ripper
     internal var dvdRipper: DVDRipper!
@@ -406,7 +408,7 @@ class MainViewController: NSViewController {
         openPanel.canChooseFiles = false
         openPanel.canChooseDirectories = true
         openPanel.allowsMultipleSelection = false
-        openPanel.title = "Select Source DVD/Blu-ray Directory"
+        openPanel.title = "Select a Disc or Disc Folder"
 
         if let url = testingUtils.showFilePanel(
             openPanel, testPath: "/tmp/test_dvd", logHandler: { [weak self] logMessage in
@@ -455,7 +457,7 @@ class MainViewController: NSViewController {
 
         // Check if we have a detected disc
         guard let currentDrive = detectedDrives.first else {
-            showAlert(title: "No Disc Detected", message: "Please insert a DVD or BluRay disc to start ripping.")
+            showAlert(title: "No Disc Detected", message: "Insert a DVD, Blu-ray or music CD to start ripping.")
             return
         }
 
@@ -482,45 +484,23 @@ class MainViewController: NSViewController {
         appendToLog("Source: \(currentDrive.mountPoint)")
         appendToLog("Output: \(outputPathField.stringValue)")
 
-        // Validate source path exists
-        let videoTSSource = currentDrive.mountPoint.appending("/VIDEO_TS")
-        guard FileManager.default.fileExists(atPath: videoTSSource) else {
-            showAlert(title: "Error", message: "Source DVD not found. Please ensure the disc is properly inserted.")
+        guard mediaType.isImportSupported else {
+            showAlert(title: "Error", message: mediaType == .unknown
+                ? "No disc Spindle can rip was found. Please ensure the disc is properly inserted."
+                : "Spindle can't import \(mediaType.displayName.lowercased())s yet.")
             return
         }
 
-        // Configure ripping for direct MediaRipper
-        let configuration = MediaRipper.RippingConfiguration(
-            outputDirectory: outputPathField.stringValue,
-            selectedTitles: [], // Rip all titles
-            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
-            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
-            quality: {
-                switch settingsManager.quality {
-                case "low": return .low
-                case "medium": return .medium
-                case "high": return .high
-                default: return .medium
-                }
-            }(),
-            includeSubtitles: true,
-            includeChapters: true,
-            mediaType: mediaType,
-            autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: resolvedDiscTitle,
-            hardwareAcceleration: settingsManager.hardwareAcceleration,
-            ripBonusFeatures: settingsManager.ripBonusFeatures
-        )
+        let configuration = ripConfiguration(for: mediaType)
 
         saveCurrentSettings()
 
         let discTitle = resolvedDiscTitle ?? currentDrive.name
-        let driveTypeString = currentDrive.type == .dvd ? "DVD" : currentDrive.type == .bluray ? "Blu-ray" : "Unknown"
-        appendToLog("Queued: \(discTitle) (\(driveTypeString))")
+        appendToLog("Queued: \(discTitle) (\(mediaType.displayName))")
 
         conversionQueue.addJob(
             sourcePath: currentDrive.mountPoint,
-            outputDirectory: outputPathField.stringValue,
+            outputDirectory: configuration.outputDirectory,
             configuration: configuration,
             mediaType: mediaType,
             discTitle: discTitle
@@ -549,14 +529,14 @@ class MainViewController: NSViewController {
     // MARK: - Drive Detection and Settings
 
     @objc private func refreshDrives() {
-        appendToLog("Scanning for optical drives with movie content...")
+        appendToLog("Scanning for discs...")
         detectedDrives = driveDetector.detectOpticalDrives()
         updateDriveDropdown()
 
         if detectedDrives.isEmpty {
-            appendToLog("No movie discs detected. Please insert a DVD (with VIDEO_TS folder) or Blu-ray (with BDMV folder).")
+            appendToLog("No discs detected. Insert a DVD, Blu-ray or music CD.")
         } else {
-            appendToLog("Found \(detectedDrives.count) movie disc(s):")
+            appendToLog("Found \(detectedDrives.count) disc(s):")
             for drive in detectedDrives {
                 let driveTypeString = drive.type.displayName
                 appendToLog("  - \(drive.displayName) (\(driveTypeString))")
@@ -579,7 +559,7 @@ class MainViewController: NSViewController {
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
             resolvedDiscTitle = nil
-            sourceLabel.stringValue = "No disc detected - Please insert a DVD or BluRay"
+            sourceLabel.stringValue = "No disc detected – insert a DVD, Blu-ray or music CD"
             ripButton.isEnabled = false
         } else {
             setDiscStatus(queueRipInProgress ? "Ripping…" : "Ready to rip")
@@ -681,11 +661,23 @@ extension MainViewController: DriveDetectorDelegate {
                 return
             }
             self.detectedDrives.append(drive)
-            self.appendToLog("New disc detected: \(drive.displayName)")
+            self.appendToLog("New disc detected: \(drive.displayName) (\(drive.type.displayName))")
             self.resolvedDiscTitle = nil
+            self.resolvedAlbum = nil
             self.updateDriveDropdown()
-            // Auto-rip only after the title lookup resolves (or fails) so the
-            // rip can use Plex-style "Movie (Year)" naming from the start
+            // Auto-rip only after the lookup resolves (or fails) so the rip is
+            // named properly from the start: "Movie (Year)", or Artist / Album.
+            if drive.type == .audioCD {
+                self.lookupAlbum(forCDAt: drive.mountPoint) { album in
+                    self.resolvedAlbum = album
+                    self.resolvedDiscTitle = album?.displayName
+                    self.updateDriveDropdown()
+                    self.appendToLog(album.map { "CD identified: \($0.displayName)" }
+                        ?? "CD not found on MusicBrainz; it will be ripped as Unknown Artist / Unknown Album.")
+                    self.autoStartRipping(for: drive)
+                }
+                return
+            }
             self.lookupDiscTitle(volumeName: drive.name) { title in
                 self.resolvedDiscTitle = title
                 self.updateDriveDropdown()
@@ -699,6 +691,7 @@ extension MainViewController: DriveDetectorDelegate {
         DispatchQueue.main.async {
             self.detectedDrives.removeAll { $0.mountPoint == drive.mountPoint }
             self.resolvedDiscTitle = nil
+            self.resolvedAlbum = nil
             self.appendToLog("Disc ejected: \(drive.displayName)")
             self.updateDriveDropdown()
         }
@@ -1194,28 +1187,7 @@ extension MainViewController: DriveDetectorDelegate {
 
         appendToLog("Auto-starting rip of \(drive.displayName)...")
 
-        // Configure ripping using saved settings for direct MediaRipper
-        let configuration = MediaRipper.RippingConfiguration(
-            outputDirectory: outputPathField.stringValue,
-            selectedTitles: [], // Rip all titles
-            videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
-            audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
-            quality: {
-                switch settingsManager.quality {
-                case "low": return .low
-                case "medium": return .medium
-                case "high": return .high
-                default: return .medium
-                }
-            }(),
-            includeSubtitles: true,
-            includeChapters: true,
-            mediaType: mediaType,
-            autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: resolvedDiscTitle,
-            hardwareAcceleration: settingsManager.hardwareAcceleration,
-            ripBonusFeatures: settingsManager.ripBonusFeatures
-        )
+        let configuration = ripConfiguration(for: mediaType)
 
         // Skip discs already ripped with the same settings; a settings change
         // re-rips automatically. Hold Option on insert (or use Start Ripping)
@@ -1255,7 +1227,7 @@ extension MainViewController: DriveDetectorDelegate {
 
         conversionQueue.addJob(
             sourcePath: drive.mountPoint,
-            outputDirectory: outputPathField.stringValue,
+            outputDirectory: configuration.outputDirectory,
             configuration: configuration,
             mediaType: mediaType,
             discTitle: autoRipTitle

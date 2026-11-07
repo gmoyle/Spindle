@@ -352,6 +352,9 @@ class ConversionQueue {
     /// Serializable fingerprint of the settings that affect rip output, stored in
     /// the completion marker so a settings change triggers an automatic re-rip.
     static func settingsFingerprint(of cfg: MediaRipper.RippingConfiguration) -> [String: String] {
+        // Video settings don't affect a CD rip; changing the video codec mustn't
+        // re-rip every CD.
+        if cfg.mediaType == .audioCD { return ["format": "flac"] }
         var fingerprint = [
             "videoCodec": String(describing: cfg.videoCodec),
             "audioCodec": String(describing: cfg.audioCodec),
@@ -782,7 +785,7 @@ class ConversionQueue {
             guard ripper.runEncode(encode) else {
                 encodeError = ripper.shouldCancel ? MediaRipperError.cancelled : MediaRipperError.conversionFailed
                 try? FileManager.default.removeItem(atPath: encode.stagingPath)
-                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for title \(encode.titleNumber)")
+                ripper.delegate?.mediaRipperDidUpdateStatus("Encoding failed for \(encode.itemNoun) \(encode.titleNumber)")
                 continue
             }
             do {
@@ -822,6 +825,8 @@ class ConversionQueue {
         if !ripper.directOutputFiles.isEmpty {
             outputFiles.append(contentsOf: Self.resolveRoutedPaths(ripper.directOutputFiles))
         }
+
+        ripper.removeStagingDirectories()
 
         let endTime = Date()
         var scriptJob = job
@@ -884,7 +889,7 @@ class ConversionQueue {
         }
     }
 
-    private func getJob(id: UUID) -> ConversionJob? {
+    func getJob(id: UUID) -> ConversionJob? {
         return jobsQueue.sync {
             jobs.first { $0.id == id }
         }

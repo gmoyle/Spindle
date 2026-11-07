@@ -29,7 +29,7 @@ extension MediaRipper.MediaType {
 
     /// Whether this version of Spindle has an importer for the kind. Kinds that
     /// are recognized but not importable yet are reported and left in the drive.
-    var isImportSupported: Bool { isVideo }
+    var isImportSupported: Bool { isVideo || self == .audioCD }
 
     var defaultPriority: ConversionQueue.JobPriority {
         switch self {
