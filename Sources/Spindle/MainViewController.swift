@@ -558,7 +558,7 @@ class MainViewController: NSViewController {
         } else {
             appendToLog("Found \(detectedDrives.count) movie disc(s):")
             for drive in detectedDrives {
-                let driveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+                let driveTypeString = drive.type.displayName
                 appendToLog("  - \(drive.displayName) (\(driveTypeString))")
             }
         }
@@ -570,8 +570,7 @@ class MainViewController: NSViewController {
     /// is handled by updateDriveDropdown).
     internal func setDiscStatus(_ status: String) {
         guard let drive = detectedDrives.first else { return }
-        let driveTypeString = drive.type == .dvd ? "DVD"
-            : drive.type == .bluray ? "Blu-ray" : "Unknown"
+        let driveTypeString = drive.type.displayName
         let displayTitle = resolvedDiscTitle ?? drive.name
         sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - \(status)"
     }
@@ -600,8 +599,7 @@ class MainViewController: NSViewController {
             sourceDropDown.isEnabled = true
 
             for drive in detectedDrives {
-                let driveTypeString = drive.type == .dvd ? "DVD" :
-                                     drive.type == .bluray ? "Blu-ray" : "Unknown"
+                let driveTypeString = drive.type.displayName
                 let title = "\(drive.name) (\(driveTypeString))"
                 sourceDropDown.addItem(withTitle: title)
             }
@@ -610,8 +608,7 @@ class MainViewController: NSViewController {
             var selectionRestored = false
             if let previousSelection = currentSelection, !previousSelection.contains("No drives detected") {
                 for (index, drive) in detectedDrives.enumerated() {
-                    let driveTypeString = drive.type == .dvd ? "DVD" :
-                                         drive.type == .bluray ? "Blu-ray" : "Unknown"
+                    let driveTypeString = drive.type.displayName
                     let title = "\(drive.name) (\(driveTypeString))"
                     if title == previousSelection || previousSelection.contains(drive.name) {
                         sourceDropDown.selectItem(at: index)
@@ -676,6 +673,13 @@ class MainViewController: NSViewController {
 extension MainViewController: DriveDetectorDelegate {
     func driveDetector(_ detector: DriveDetector, didDetectNewDisc drive: OpticalDrive) {
         DispatchQueue.main.async {
+            // Recognized but no importer yet (music CDs, photo and data discs):
+            // say what it is and leave it alone.
+            guard drive.type.isImportSupported else {
+                self.appendToLog("\(drive.type.displayName) detected: \(drive.name). "
+                    + "Spindle can't import \(drive.type.displayName.lowercased())s yet, so it was left in the drive.")
+                return
+            }
             self.detectedDrives.append(drive)
             self.appendToLog("New disc detected: \(drive.displayName)")
             self.resolvedDiscTitle = nil
@@ -1246,7 +1250,7 @@ extension MainViewController: DriveDetectorDelegate {
         saveCurrentSettings()
 
         let autoRipTitle = resolvedDiscTitle ?? drive.name
-        let autodriveTypeString = drive.type == .dvd ? "DVD" : drive.type == .bluray ? "Blu-ray" : "Unknown"
+        let autodriveTypeString = drive.type.displayName
         appendToLog("Queued: \(autoRipTitle) (\(autodriveTypeString))")
 
         conversionQueue.addJob(

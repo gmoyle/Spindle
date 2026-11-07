@@ -13,33 +13,8 @@ struct OpticalDrive {
     let type: MediaType
     let devicePath: String
 
-    enum MediaType: Equatable {
-        case dvd
-        case bluray
-        case bluray4K
-        case hddvd
-        case unknown
-
-        var displayName: String {
-            switch self {
-            case .dvd: return "DVD"
-            case .bluray: return "Blu-ray"
-            case .bluray4K: return "4K Blu-ray"
-            case .hddvd: return "HD DVD"
-            case .unknown: return "Unknown"
-            }
-        }
-
-        var defaultPriority: ConversionQueue.JobPriority {
-            switch self {
-            case .bluray4K: return .high
-            case .bluray: return .normal
-            case .hddvd: return .normal
-            case .dvd: return .low
-            case .unknown: return .normal
-            }
-        }
-    }
+    /// The same disc kind the queue and rippers use.
+    typealias MediaType = DiscKind
 
     var displayName: String {
         return "\(name) (\(mountPoint))"
@@ -65,6 +40,11 @@ class DriveDetector {
     func startMonitoring() {
         guard !isMonitoring else { return }
         isMonitoring = true
+
+        // Under XCTest, never see real discs: a test's view controller would
+        // otherwise pick up a disc in the drive and eject or rip it, even while
+        // the real app is ripping that disc.
+        guard !TestingUtilities.shared.isRunningInTestEnvironment else { return }
 
         let nc = NSWorkspace.shared.notificationCenter
 
@@ -106,12 +86,24 @@ class DriveDetector {
     private func handleVolumeMount(url: URL) {
         let path = url.path
         print("[DriveDetector] Volume mounted: \(path)")
-        guard isOpticalDrive(at: path) else {
-            print("[DriveDetector] ✗ Not a movie disc: \(path)")
-            return
+        // Classifying can run diskutil and walk a data disc's files: keep it off
+        // the main thread, then report back on it.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let kind = DiscClassifier.classify(volumeAt: path)
+            DispatchQueue.main.async {
+                guard kind != .unknown else {
+                    print("[DriveDetector] ✗ Not a disc Spindle imports: \(path)")
+                    return
+                }
+                self.report(self.getOpticalDriveInfo(at: path, kind: kind))
+            }
         }
-        let drive = getOpticalDriveInfo(at: path)
-        print("[DriveDetector] ✓ Movie disc detected: \(drive.displayName) (\(drive.type))")
+    }
+
+    private func report(_ drive: OpticalDrive) {
+        guard !lastKnownDrives.contains(where: { $0.mountPoint == drive.mountPoint }) else { return }
+        print("[DriveDetector] ✓ Disc detected: \(drive.displayName) (\(drive.type.displayName))")
         lastKnownDrives.append(drive)
         delegate?.driveDetector(self, didDetectNewDisc: drive)
     }
@@ -133,14 +125,11 @@ class DriveDetector {
             guard let self = self else { return }
             let opticalMountPoints = self.findOpticalMountPointsViaIOKit()
             for path in opticalMountPoints {
-                if self.isOpticalDrive(at: path) {
-                    let drive = self.getOpticalDriveInfo(at: path)
-                    DispatchQueue.main.async {
-                        print("[DriveDetector] ✓ Already mounted disc: \(drive.displayName)")
-                        self.lastKnownDrives.append(drive)
-                        self.delegate?.driveDetector(self, didDetectNewDisc: drive)
-                    }
-                }
+                // These are known optical volumes, so skip the diskutil re-check.
+                let kind = DiscClassifier.classify(volumeAt: path, isOpticalMedia: { _ in true })
+                guard kind != .unknown else { continue }
+                let drive = self.getOpticalDriveInfo(at: path, kind: kind)
+                DispatchQueue.main.async { self.report(drive) }
             }
         }
     }
@@ -215,27 +204,9 @@ class DriveDetector {
 
     // MARK: - Drive Detection Helpers
 
-    /// Checks if a volume path contains DVD/Blu-ray/HD DVD structure
-    private func isOpticalDrive(at path: String) -> Bool {
-        let fileManager = FileManager.default
-
-        let indicators = ["VIDEO_TS", "AUDIO_TS", "BDMV", "CERTIFICATE", "HVDVD_TS", "ADV_OBJ", "HVAUDIO_TS"]
-        for indicator in indicators {
-            let indicatorPath = (path as NSString).appendingPathComponent(indicator)
-            if fileManager.fileExists(atPath: indicatorPath) {
-                print("[DriveDetector]   Found disc structure: \(indicator) at \(path)")
-                return true
-            }
-        }
-
-        print("[DriveDetector]   No movie disc structure found at \(path)")
-        return false
-    }
-
     /// Gets optical drive information
-    private func getOpticalDriveInfo(at path: String) -> OpticalDrive {
+    private func getOpticalDriveInfo(at path: String, kind: DiscKind) -> OpticalDrive {
         let url = URL(fileURLWithPath: path)
-        let mediaType = determineMediaType(at: path)
 
         var rawName = "Unknown Drive"
         if let resourceValues = try? url.resourceValues(forKeys: [.volumeNameKey]),
@@ -250,37 +221,7 @@ class DriveDetector {
         // accepts a mount point, and a guessed node (disk1 is typically a system
         // disk) would be unmounted/ejected by mistake.
         let devicePath = getDevicePath(for: path) ?? path
-        return OpticalDrive(mountPoint: path, name: volumeName, type: mediaType, devicePath: devicePath)
-    }
-
-    /// Determines the media type (DVD, Blu-ray, 4K Blu-ray, or HD DVD)
-    private func determineMediaType(at path: String) -> OpticalDrive.MediaType {
-        let fileManager = FileManager.default
-
-        for indicator in ["BDMV", "CERTIFICATE"] {
-            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
-                return is4KBluRay(at: path) ? .bluray4K : .bluray
-            }
-        }
-
-        for indicator in ["HVDVD_TS", "ADV_OBJ"] {
-            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
-                return .hddvd
-            }
-        }
-
-        for indicator in ["VIDEO_TS", "AUDIO_TS"] {
-            if fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(indicator)) {
-                return .dvd
-            }
-        }
-
-        return .unknown
-    }
-
-    /// Determines if a Blu-ray disc is 4K UHD (index.bdmv header "INDX0300")
-    private func is4KBluRay(at path: String) -> Bool {
-        MediaRipper.isUHDIndex(atPath: (path as NSString).appendingPathComponent("BDMV/index.bdmv"))
+        return OpticalDrive(mountPoint: path, name: volumeName, type: kind, devicePath: devicePath)
     }
 
     /// Converts DVD volume names like "THE_DARK_KNIGHT" to "The Dark Knight"

@@ -190,6 +190,17 @@ final class MakeMKVRegistrationTests: XCTestCase {
         XCTAssertEqual(MakeMKVBackend.matchDrive(Array(drives.prefix(1)), bsdName: nil, volumeName: "OTHER"), 0)
     }
 
+    func testSingleDriveIsNotUsedForAPathOnAnotherDisk() {
+        // A folder on the internal disk (disk3) must not rip the disc in the drive.
+        let drives = MakeMKVBackend.parseDrives(fromInfoOutput: twoDriveInfo)
+        XCTAssertNil(MakeMKVBackend.matchDrive(Array(drives.prefix(1)), bsdName: "disk3", volumeName: "OTHER"))
+    }
+
+    func testMakeMKVIsNeverRunFromTests() {
+        XCTAssertNil(MakeMKVBackend.executablePath())
+        XCTAssertFalse(MakeMKVBackend.isInstalled)
+    }
+
     func testBSDNameFromDevicePath() {
         XCTAssertEqual(MakeMKVBackend.bsdName(forDevicePath: "/dev/rdisk4"), "disk4")
         XCTAssertEqual(MakeMKVBackend.bsdName(forDevicePath: "/dev/disk12s1"), "disk12")

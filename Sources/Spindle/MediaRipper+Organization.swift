@@ -75,7 +75,7 @@ extension MediaRipper {
             return extractDVDTitle(from: mediaPath)
         case .bluray, .bluray4K:
             return extractBluRayTitle(from: mediaPath)
-        case .unknown:
+        case .audioCD, .photoDisc, .dataDisc, .unknown:
             return nil
         }
     }

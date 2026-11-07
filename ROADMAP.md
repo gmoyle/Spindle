@@ -33,7 +33,11 @@ them.
   and `~/Library/Application Support/AutoRip2MKV-Mac`
 - Repository renamed to `gmoyle/Spindle`
 
-## Phase 1: Groundwork
+## Phase 1: Groundwork ✅
+
+Done. The importer interface is the existing two-step `MediaRipper` contract: read the
+disc while it's needed, then run staged encodes after eject. Each disc kind adds a
+`MediaRipper+Kind.swift` extension rather than a separate protocol.
 
 - **Disc kinds**: replace the video-only media type with a disc kind decided from
   the disc's contents: video DVD, Blu-ray, HD DVD, audio CD, photo disc,

@@ -13,7 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On first launch, settings, rip history, logs and a downloaded ffmpeg are moved over from AutoRip2MKV, so already-ripped discs are still recognized. macOS asks for disc access again, because the bundle ID changed.
 - Pre/post-processing scripts get `SPINDLE_*` environment variables instead of `AUTORIP_*`.
 
+### 🧱 Groundwork for new disc kinds
+- **Disc detection by contents**: one classifier decides what a disc is: DVD, Blu-ray (and UHD), HD DVD, audio CD, photo disc or data disc. Photo and data discs count only on optical media, so a USB stick or camera card is never imported. Audio CDs, photo discs and data discs are recognized and noted in the log, but not imported yet.
+- **Library folders per kind**: Settings → Output & Routing has Music, Photos, Home Videos and Imported Discs folders. Unless you change them, they sit next to your Movies folder (e.g. `/Volumes/Media/Music`). Photos stays unset, so the first photo disc can ask where photos go.
+- **Metadata providers**: movie lookup (OMDb) sits behind a provider interface that TMDB and MusicBrainz will plug into.
+
 ### 🐛 Fixed
+- HD DVDs were recognized when inserted but the rip didn't detect them, so it failed as "unsupported media type".
+- Running the test suite with a disc in the drive could eject it, or start a real MakeMKV rip of it from the test process, competing with the app's own rip. Tests no longer see real drives or run MakeMKV.
+- With one optical drive connected, a MakeMKV rip of a folder or disc image on another disk ripped whatever disc was in the drive instead.
+- `deploy.sh` refuses to deploy during a DVD read or an encode too, not only while MakeMKV runs.
 - The log panel showed nothing: its text view had no width, and log lines had no colour, so they were invisible in Dark Mode.
 - The queue lists the newest job first.
 

@@ -31,6 +31,9 @@ class DetailedSettingsWindowController: NSWindowController {
     private var contentRoutingCheckbox: NSButton!
     private var autoRouteCheckbox: NSButton!
     private var moviesRootField: NSTextField!
+    /// Root folders for the libraries beyond Movies and TV Shows.
+    private var extraLibraryFields: [LibraryKind: NSTextField] = [:]
+    private static let extraLibraries: [LibraryKind] = [.music, .photos, .homeVideos, .importedDiscs]
     private var tvShowsRootField: NSTextField!
 
     // Quality & Codec Section
@@ -340,6 +343,19 @@ class DetailedSettingsWindowController: NSWindowController {
         sectionStackView.addArrangedSubview(
             createLabelControlButtonRow(label: tvLabel, control: tvShowsRootField, button: tvBrowse))
 
+        for kind in Self.extraLibraries {
+            let label = NSTextField(labelWithString: "\(kind.displayName) Folder:")
+            let field = NSTextField()
+            field.placeholderString = kind == .photos
+                ? "Asked the first time a photo disc is inserted"
+                : "Next to the Movies folder"
+            let browse = NSButton(title: "Browse...", target: self, action: #selector(browseForLibraryRoot(_:)))
+            browse.tag = Self.extraLibraries.firstIndex(of: kind) ?? 0
+            extraLibraryFields[kind] = field
+            sectionStackView.addArrangedSubview(
+                createLabelControlButtonRow(label: label, control: field, button: browse))
+        }
+
         NSLayoutConstraint.activate([
             sectionStackView.topAnchor.constraint(equalTo: outputDirectoryBox.topAnchor, constant: 25),
             sectionStackView.leadingAnchor.constraint(equalTo: outputDirectoryBox.leadingAnchor, constant: 10),
@@ -354,6 +370,12 @@ class DetailedSettingsWindowController: NSWindowController {
 
     @objc private func browseForTVShowsRoot() {
         browseForFolder(into: tvShowsRootField)
+    }
+
+    @objc private func browseForLibraryRoot(_ sender: NSButton) {
+        guard Self.extraLibraries.indices.contains(sender.tag),
+              let field = extraLibraryFields[Self.extraLibraries[sender.tag]] else { return }
+        browseForFolder(into: field)
     }
 
     private func browseForFolder(into field: NSTextField) {
@@ -657,6 +679,11 @@ class DetailedSettingsWindowController: NSWindowController {
         autoRouteCheckbox.state = settingsManager.autoRouteHighConfidence ? .on : .off
         moviesRootField.stringValue = settingsManager.moviesRootDirectory
         tvShowsRootField.stringValue = settingsManager.tvShowsRootDirectory
+        for (kind, field) in extraLibraryFields {
+            // Photos stays empty until chosen, so the first photo disc can ask.
+            field.stringValue = kind == .photos && !settingsManager.hasChosenLibraryRoot(.photos)
+                ? "" : settingsManager.libraryRoot(kind)
+        }
 
         // Directory structure (consumed by OutputOrganizer).
         outputStructurePopup.selectItem(at: settingsManager.outputStructureType)
@@ -785,6 +812,16 @@ class DetailedSettingsWindowController: NSWindowController {
         if !tvShowsRootField.stringValue.isEmpty {
             settingsManager.tvShowsRootDirectory =
                 NSString(string: tvShowsRootField.stringValue).expandingTildeInPath
+        }
+        // Save only a changed folder: saving the shown default would pin it, and
+        // Photos would never ask.
+        for (kind, field) in extraLibraryFields {
+            let value = NSString(string: field.stringValue.trimmingCharacters(in: .whitespaces))
+                .expandingTildeInPath
+            let unchanged = settingsManager.hasChosenLibraryRoot(kind)
+                ? value == settingsManager.libraryRoot(kind)
+                : value.isEmpty || (kind != .photos && value == settingsManager.libraryRoot(kind))
+            if !unchanged, !value.isEmpty { settingsManager.setLibraryRoot(value, for: kind) }
         }
 
         // Directory structure (consumed by OutputOrganizer).

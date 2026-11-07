@@ -135,7 +135,7 @@ extension MediaRipper {
             return try analyzeDVDMedia(mediaPath, isUHD: detectedType == .ultraHDDVD)
         case .hddvd:
             return try analyzeHDDVDMedia(mediaPath)
-        case .unknown:
+        case .audioCD, .photoDisc, .dataDisc, .unknown:
             throw AnalysisError.unsupportedMediaType
         }
     }

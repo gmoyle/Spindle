@@ -5,13 +5,22 @@ import AVFoundation
 /// Implementation details are in separate extension files for better organization
 class MediaRipper {
     // Media type detection
-    enum MediaType {
-    case dvd
-    case ultraHDDVD
-    case bluray
-    case bluray4K
-    case hddvd
-    case unknown
+    /// What a disc holds, decided from its contents by `DiscClassifier`. Video
+    /// kinds are ripped by the `MediaRipper+DVD/BluRay/HDDVD` extensions; the other
+    /// kinds get their own extensions as their importers land (see ROADMAP.md).
+    enum MediaType: Equatable {
+        case dvd
+        case ultraHDDVD
+        case bluray
+        case bluray4K
+        case hddvd
+        /// A Red Book audio CD (macOS mounts its tracks as AIFF files).
+        case audioCD
+        /// A data disc that is mostly photos (JPEG/HEIC/RAW, DCIM, Picture CD).
+        case photoDisc
+        /// Any other data disc.
+        case dataDisc
+        case unknown
 
         var folderName: String {
             switch self {
@@ -20,6 +29,9 @@ class MediaRipper {
             case .bluray: return "Blu-ray"
             case .bluray4K: return "4K_Blu-ray"
             case .hddvd: return "HD_DVD"
+            case .audioCD: return "Audio_CD"
+            case .photoDisc: return "Photo_Disc"
+            case .dataDisc: return "Data_Disc"
             case .unknown: return "Unknown_Media"
             }
         }
@@ -178,26 +190,9 @@ class MediaRipper {
     }
 
     // MARK: - Public Interface
-    /// Detect media type from directory structure
+    /// Detect media type from the disc's contents.
     func detectMediaType(path: String) -> MediaType {
-        let videoTSPath = path.appending("/VIDEO_TS")
-        let bdmvPath = path.appending("/BDMV")
-
-        if FileManager.default.fileExists(atPath: bdmvPath) {
-            // Check if it's 4K Blu-ray by looking for UHD indicators
-            if isUltraHDBluRay(bdmvPath: bdmvPath) {
-                return .bluray4K
-            }
-            return .bluray
-        } else if FileManager.default.fileExists(atPath: videoTSPath) {
-            // Check if it's Ultra HD DVD
-            if isUltraHDDVD(videoTSPath: videoTSPath) {
-                return .ultraHDDVD
-            }
-            return .dvd
-        }
-
-        return .unknown
+        DiscClassifier.classify(volumeAt: path)
     }
 
     /// Start the media ripping process
@@ -281,6 +276,8 @@ class MediaRipper {
             try withRetries(label: "HD DVD", category: .general, delaySeconds: 0) {
                 try performHDDVDRippingWorkflow(hddvdPath: mediaPath, configuration: configuration)
             }
+        case .audioCD, .photoDisc, .dataDisc:
+            throw MediaRipperError.importNotSupportedYet(currentMediaType)
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
         }
@@ -376,7 +373,7 @@ protocol MediaRipperDelegate: AnyObject {
 
 // MARK: - Error Types
 
-enum MediaRipperError: LocalizedError {
+enum MediaRipperError: LocalizedError, Equatable {
     case alreadyRipping
     case unsupportedMediaType
     case noTitlesFound
@@ -386,6 +383,8 @@ enum MediaRipperError: LocalizedError {
     case ffmpegNotFound
     case cancelled
     case deviceNotFound
+    /// A disc kind Spindle recognizes but can't import yet.
+    case importNotSupportedYet(MediaRipper.MediaType)
 
     var errorDescription: String? {
         switch self {
@@ -407,6 +406,8 @@ enum MediaRipperError: LocalizedError {
             return "Operation was cancelled"
         case .deviceNotFound:
             return "DVD/Blu-ray device not found"
+        case .importNotSupportedYet(let kind):
+            return "Importing \(kind.displayName.lowercased())s isn't supported yet."
         }
     }
 }
