@@ -251,7 +251,7 @@ class UIUpdateManager: UIUpdateManaging, @unchecked Sendable {
             dropdown.isEnabled = false
         } else {
             for (index, drive) in drives.enumerated() {
-                let displayName = "\(drive.name) - \(drive.type == .dvd ? "DVD" : "Blu-ray")"
+                let displayName = "\(drive.name) - \(drive.type.displayName)"
                 dropdown.addItem(withTitle: displayName)
                 
                 // Set additional info as tooltip

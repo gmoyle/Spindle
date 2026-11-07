@@ -19,12 +19,23 @@ echo "Building..."
 cd "$REPO"
 swift build -c release
 
-# Guard: never kill the app (and orphan/interrupt a rip) while makemkvcon runs.
+# Guard: never kill the app (and orphan/interrupt a rip) while a rip is active.
 # Building above is safe during a rip — it doesn't touch the drive — but the
 # pkill below would cut the rip off, so we check here, after the build.
-if pgrep -x makemkvcon >/dev/null 2>&1; then
+# A DVD read with the built-in reader, or an encode, runs inside the app with no
+# makemkvcon: it shows as a staging file being written, or an ffmpeg child.
+STAGING="$HOME/Library/Caches/Spindle/encoding"
+ACTIVE=""
+pgrep -x makemkvcon >/dev/null 2>&1 && ACTIVE="makemkvcon is running"
+if [ -z "$ACTIVE" ] && [ -d "$STAGING" ] && [ -n "$(find "$STAGING" -type f -mmin -1 2>/dev/null | head -1)" ]; then
+    ACTIVE="a disc is being read (staging file written in the last minute)"
+fi
+for pid in $(pgrep -x Spindle); do
+    [ -z "$ACTIVE" ] && pgrep -x -P "$pid" ffmpeg >/dev/null 2>&1 && ACTIVE="an encode (ffmpeg) is running"
+done
+if [ -n "$ACTIVE" ]; then
     if [ "$FORCE" -ne 1 ]; then
-        echo "ERROR: a rip (makemkvcon) is currently running." >&2
+        echo "ERROR: a rip is in progress: $ACTIVE." >&2
         echo "Deploying would kill the app and interrupt/orphan the rip." >&2
         echo "Cancel the rip from the app (Cancel Rip button) or wait for it to" >&2
         echo "finish, then re-run. Use './deploy.sh --force' to override." >&2

@@ -94,12 +94,8 @@ enum ContentRouter {
                       settings: SettingsManager = .shared,
                       fileManager: FileManager = .default,
                       history: RipHistoryStore = .shared) throws -> String {
-        let root: String
-        switch type {
-        case .movie: root = settings.moviesRootDirectory
-        case .tvShow: root = settings.tvShowsRootDirectory
-        case .unknown: throw RouteError.rootNotConfigured(.unknown)
-        }
+        guard type != .unknown else { throw RouteError.rootNotConfigured(.unknown) }
+        let root = settings.libraryRoot(LibraryKind(contentType: type))
         guard !root.isEmpty else { throw RouteError.rootNotConfigured(type) }
 
         try? fileManager.createDirectory(atPath: root, withIntermediateDirectories: true)

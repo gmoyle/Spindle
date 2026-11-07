@@ -44,7 +44,12 @@ swiftlint lint
 
 1. **Detection**: `DriveDetector` listens for `NSWorkspace` mount/unmount notifications and calls
    `MainViewController` (delegate). Never poll `mountedVolumeURLs`, because each poll triggers a
-   TCC prompt.
+   TCC prompt. `DiscClassifier.classify(volumeAt:)` decides the disc kind (`DiscKind`, a typealias
+   of `MediaRipper.MediaType`) from the volume's contents: video structures and audio CDs
+   (cddafs AIFF tracks, `.TOC.plist`) on any volume, photo/data discs only when `diskutil` says
+   the volume is optical. Kinds without an importer yet (`isImportSupported == false`) are
+   logged and left in the drive. Under XCTest `startMonitoring` does nothing, so tests never
+   see, eject or rip a real disc.
 2. **Skip check**: `MainViewController.findCompletedRip` treats a disc as already ripped if
    (a) `PendingRoutingQueue` holds it, (b) `RipHistoryStore` has an entry whose `DiscIdentity`
    fingerprint matches **and** whose `ConversionQueue.settingsFingerprint` is unchanged, or
@@ -84,7 +89,12 @@ swiftlint lint
      libaacs path (`BluRayDecryptor`, `performBluRayRipping`) is a fallback only.
    - **HD DVD**: `MediaRipper+HDDVD.swift` plus `HDDVDStructureParser`, which is largely
      heuristic.
-5. **Organization and routing**: `OutputOrganizer` and `SettingsManager` directory-format tokens
+5. **Libraries and metadata**: `LibraryKind` names each library (Movies, TV Shows, Music,
+   Photos, Home Videos, Imported Discs); `SettingsManager.libraryRoot(_:)` gives its root, with
+   the newer libraries defaulting next to the Movies root. Title lookups go through
+   `MetadataProviders` (`MovieMetadataProvider`, OMDb today); `DiscTitleQuery` turns a volume
+   label into search terms.
+6. **Organization and routing**: `OutputOrganizer` and `SettingsManager` directory-format tokens
    build the output folder (Plex `Movie (Year)` naming when `plexName` is set; OMDb lookup lives
    in `MainViewController+OMDb.swift`). After a rip, `ContentRouter` uses
    `ContentTypeClassifier` (title durations) to move the folder into the Movies or TV root, or

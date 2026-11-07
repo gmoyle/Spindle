@@ -563,20 +563,7 @@ extension MediaRipper {
     }
 
     func mediaTypeString(_ type: MediaType) -> String {
-        switch type {
-        case .dvd:
-            return "DVD"
-        case .ultraHDDVD:
-            return "Ultra HD DVD"
-        case .hddvd:
-            return "HD DVD"
-        case .bluray:
-            return "Blu-ray"
-        case .bluray4K:
-            return "4K Blu-ray"
-        case .unknown:
-            return "Unknown"
-        }
+        type.displayName
     }
 }
 

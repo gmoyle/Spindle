@@ -104,6 +104,10 @@ class ConversionQueue {
                 baseDuration = 3600  // ~60 minutes for Blu-ray
             case .bluray4K:
                 baseDuration = 5400  // ~90 minutes for 4K Blu-ray
+            case .audioCD:
+                baseDuration = 600   // ~10 minutes to read and encode a CD
+            case .photoDisc, .dataDisc:
+                baseDuration = 600   // copying, no encode
             case .unknown:
                 baseDuration = 2400  // Default estimate
             }
@@ -918,6 +922,8 @@ class ConversionQueue {
             requiredBytes = 50_000_000_000 // 50GB for Blu-ray
         case .bluray4K:
             requiredBytes = 100_000_000_000 // 100GB for 4K Blu-ray
+        case .audioCD, .photoDisc, .dataDisc:
+            requiredBytes = 2_000_000_000   // a CD or data DVD's worth of staging
         case .unknown:
             requiredBytes = 50_000_000_000 // Default to safe amount
         }

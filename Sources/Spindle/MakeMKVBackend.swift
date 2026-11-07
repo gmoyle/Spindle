@@ -53,9 +53,12 @@ final class MakeMKVBackend {
         "/opt/homebrew/bin/makemkvcon"
     ]
 
-    /// Path to makemkvcon, or nil if MakeMKV isn't installed.
+    /// Path to makemkvcon, or nil if MakeMKV isn't installed. Always nil under
+    /// XCTest: a test would otherwise run the real makemkvcon against whatever disc
+    /// is in the drive, competing with a rip the real app is running.
     static func executablePath() -> String? {
-        candidatePaths.first { FileManager.default.isExecutableFile(atPath: $0) }
+        guard !TestingUtilities.shared.isRunningInTestEnvironment else { return nil }
+        return candidatePaths.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     static var isInstalled: Bool { executablePath() != nil }
@@ -748,7 +751,12 @@ final class MakeMKVBackend {
         if let drive = drives.first(where: { $0.discName == volumeName }) {
             return drive.index
         }
-        return drives.count == 1 ? drives[0].index : nil
+        // One drive, and we can't tell which disk the path is on: assume that drive.
+        // If we do know the disk and the drive is a different one (a folder or disc
+        // image on another disk), don't rip whatever happens to be in the drive.
+        guard drives.count == 1 else { return nil }
+        let driveBSD = Self.bsdName(forDevicePath: drives[0].devicePath)
+        return bsdName == nil || driveBSD == nil ? drives[0].index : nil
     }
 
     /// "/dev/rdisk4" or "/dev/disk4s1" → "disk4" (whole-disk BSD name).
