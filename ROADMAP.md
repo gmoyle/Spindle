@@ -2,7 +2,8 @@
 
 Spindle (formerly AutoRip2MKV) is turning from a DVD/Blu-ray ripper into a media
 library companion: insert any disc, and its contents land in the right library,
-named and organized, with nothing to click.
+named and organized, with nothing to click. The same goes for folders, USB drives,
+camera cards and an Apple Photos library, once you point Spindle at them.
 
 Spindle works with Plex, Jellyfin and Emby folder layouts, but isn't tied to any of
 them.
@@ -23,7 +24,8 @@ them.
 | Music format | **FLAC** |
 | CD reading | Fast (macOS's own CD reading); verification such as AccurateRip later |
 | Photo destination | **Ask the first time** a photo disc is inserted: a library folder, Apple Photos, or both |
-| Phase order | 0 → 1 → 2 → 3 → 4 → 5 |
+| Phase order | 0 → 1 → 2 → 3 → 4 → 5 → 6 |
+| USB drives and camera cards | Never imported automatically; Spindle asks, with "always for this device" |
 
 ## Phase 0: Rename to Spindle
 
@@ -81,7 +83,34 @@ disc while it's needed, then run staged encodes after eject. Each disc kind adds
   rip to a Home Videos library, named by date
 - **Other data discs**: copy as-is into `Imported Discs/<disc name>/`
 
-## Phase 5: Companion features
+## Phase 5: Import from folders, USB drives and Apple Photos
+
+Discs stay automatic. Other sources are imported when you ask, and go through the
+same classifier, importers, libraries, duplicate check and history as discs.
+
+- **Import…**: a File menu command and button, plus dropping a folder or files on
+  the window or Dock icon. Spindle sorts what it finds by file type:
+  - a `VIDEO_TS` / `BDMV` folder or an ISO: ripped like a disc
+  - video files (MKV, MP4, MOV, AVI): filed into Movies / TV Shows (or Home
+    Videos for camera clips), remuxed rather than re-encoded where possible
+  - music files (FLAC, ALAC, MP3, AAC): tagged and filed into Music, copied as
+    they are (no re-encode); a lossless rip in WAV/AIFF is converted to FLAC
+  - photos: the photo importer (dates, duplicates)
+  - anything else: left alone and listed in the import summary
+- **USB drives and camera cards**: when a non-optical removable volume is mounted
+  and holds media, Spindle asks: "Import 312 photos and 4 videos from EOS_DIGITAL?"
+  It offers Import, Not now, and Always import from this device, and remembers
+  the answer per device (volume UUID). Optionally ejects when done.
+- **Apple Photos**: read-only through PhotoKit, after macOS asks for Photos access
+  the first time. Exports originals (optionally edited versions too) into the
+  Photos library by date, and remembers which photos are already exported, so
+  later runs only bring new ones. Optional: re-check daily.
+- **Watched inbox folder** (optional): anything dropped into it is imported and
+  removed from the inbox once it's safely filed.
+- **Never moves or deletes the source**: imports copy; the source is left as it was
+  (except the inbox folder, which is emptied once each item is filed).
+
+## Phase 6: Companion features
 
 - Ask the local media server to rescan the affected library after each import
   (Plex API with the server token; Jellyfin/Emby later)
@@ -89,6 +118,8 @@ disc while it's needed, then run staged encodes after eject. Each disc kind adds
   needs review
 
 ## Later
+
+- Two-way Apple Photos sync (filing library photos back into Photos)
 
 - AccurateRip verification for audio CDs
 - Secure (paranoia-style) CD reading for scratched discs
