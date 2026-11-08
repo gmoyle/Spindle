@@ -80,15 +80,18 @@ Near matches from MusicBrainz are only used when every track length agrees.
   episode runtimes to place a disc whose earlier discs weren't imported, and
   splitting a title that holds two episodes
 
-## Phase 4: Photo, home-video and data discs
+## Phase 4: Photo, home-video and data discs ✅
 
-- **Photo discs** (JPEG/HEIC/RAW files, `DCIM`, Kodak Picture CD): copy with
-  checksum verification, organize by photo date as `Photos/2004/2004-07-14/`,
-  skip duplicates of photos already imported. Destination chosen the first time
-  (folder, Apple Photos, or both)
-- **Home-video discs** (camcorder or burned DVDs with no commercial title):
-  rip to a Home Videos library, named by date
-- **Other data discs**: copy as-is into `Imported Discs/<disc name>/`
+- ✅ **Photo discs** (JPEG/HEIC/RAW files and camera clips, `DCIM`, Kodak Picture
+  CD): copied with checksum verification, organized by photo date as
+  `Photos/2004/2004-07-14/`, duplicates of photos already imported skipped (by
+  content). Destination chosen the first time (folder, Apple Photos, or both)
+- ✅ **Home-video discs**: a video DVD on recordable media is ripped to Home Videos,
+  named by date (`2004-07-14 Birthday Party.mkv`), every recording numbered
+- ✅ **Other data discs**: copied as-is into `Imported Discs/<disc name>/`, each file
+  verified; unreadable files listed
+- Not yet: DVD-VR discs (`DVD_RTAV`, from some recorders) are copied as data discs
+  rather than converted; a burned copy of a film lands in Home Videos
 
 ## Phase 5: Import from folders, USB drives and Apple Photos
 

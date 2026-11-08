@@ -29,7 +29,10 @@ enum DiscIdentity {
         if let toc = AudioCDTOC.read(fromVolumeAt: mountPath) {
             return "mb-\(toc.musicBrainzDiscID)"
         }
-        let sizes = videoFileSizes(forDiscAt: mountPath, fileManager: fileManager)
+        var sizes = videoFileSizes(forDiscAt: mountPath, fileManager: fileManager)
+        // Photo and data discs: every file counts (labels like "CDROM" are shared
+        // by thousands of discs).
+        if sizes.isEmpty { sizes = allFileSizes(forDiscAt: mountPath, fileManager: fileManager) }
         guard !sizes.isEmpty else { return nil }
         // Sort so ordering differences don't change the fingerprint. Use count,
         // total, and largest — coarse enough to survive trivial FS noise but
@@ -57,6 +60,21 @@ enum DiscIdentity {
             return fileSizes(in: videoTS, matching: ".vob", fileManager: fileManager)
         }
         return []
+    }
+
+    /// Sizes of the disc's files (hidden ones skipped), up to the classifier's scan limit.
+    private static func allFileSizes(forDiscAt mountPath: String, fileManager: FileManager) -> [Int64] {
+        guard let walker = fileManager.enumerator(
+            at: URL(fileURLWithPath: mountPath), includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+        var sizes: [Int64] = []
+        for case let url as URL in walker {
+            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true, let size = values.fileSize, size > 0 else { continue }
+            sizes.append(Int64(size))
+            if sizes.count >= DiscClassifier.maxFilesScanned { break }
+        }
+        return sizes
     }
 
     private static func fileSizes(in dir: String, matching ext: String,

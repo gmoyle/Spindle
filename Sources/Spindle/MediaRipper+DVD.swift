@@ -18,37 +18,23 @@ extension MediaRipper {
 
         // Step 2: Determine the output directory. With a resolved title, use
         // Plex-style "<output>/<Movie (Year)>/"; otherwise the media-type layout.
+        // A home video goes straight into Home Videos, named by date.
         delegate?.mediaRipperDidUpdateStatus("Analyzing disc information...")
-        let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
-        let organizedOutputDirectory = organizedDirectory(
-            for: configuration, mediaType: currentMediaType, fallbackName: movieName)
-
-        // Create disc info file
-        createDiscInfo(in: organizedOutputDirectory, mediaPath: dvdPath,
-                      mediaType: currentMediaType, movieName: movieName)
+        let homeVideo = configuration.selectedTitles.isEmpty ? configuration.homeVideo : nil
+        let organizedOutputDirectory = try dvdOutputDirectory(dvdPath: dvdPath, configuration: configuration,
+                                                              homeVideo: homeVideo)
 
         // Step 3: Determine which titles to rip
         // Route after the encodes land (see ConversionQueue.performEncodes);
         // all of the disc's titles inform the movie-vs-TV classification.
-        routeAfterEncodes = PendingRoute(
+        // Home videos are already in their library and aren't routed.
+        routeAfterEncodes = homeVideo != nil ? nil : PendingRoute(
             folderPath: organizedOutputDirectory,
             discName: (dvdPath as NSString).lastPathComponent,
             discIdentity: DiscIdentity.compute(forDiscAt: dvdPath),
             titleDurationsSeconds: titles.map { Int($0.duration) })
-        // A TV season disc: rip every episode (not just the longest title),
-        // skip "play all", and keep extras only with bonus features on.
-        let tvSelection = configuration.selectedTitles.isEmpty ? Self.tvEpisodeSelection(for: titles) : nil
-        let titlesToRip: [DVDTitle]
-        if let tv = tvSelection {
-            let chosen = (tv.episodes + (configuration.ripBonusFeatures ? tv.extras : [])).sorted()
-            titlesToRip = chosen.map { titles[$0] }
-            Logger.shared.log("TV disc: episodes are titles \(tv.episodes.map { titles[$0].number }), "
-                              + "play-all \(tv.playAll.map { titles[$0].number }), "
-                              + "extras \(tv.extras.map { titles[$0].number })", level: .info, category: .dvdRipping)
-        } else {
-            titlesToRip = filterTitlesToRip(titles: titles, selectedTitles: configuration.selectedTitles,
-                                            ripBonusFeatures: configuration.ripBonusFeatures)
-        }
+        let (titlesToRip, tvSelection) = chooseDVDTitles(titles, configuration: configuration,
+                                                          homeVideo: homeVideo)
         delegate?.mediaRipperDidUpdateStatus("Titles to rip: \(titlesToRip.map({ $0.number }))")
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
@@ -67,7 +53,8 @@ extension MediaRipper {
         let plans = titlesToRip.enumerated().map { index, title in
             planDVDTitle(title, index: index, totalTitles: titlesToRip.count,
                          configuration: configuration, outputDirectory: organizedOutputDirectory,
-                         isTVEpisode: tvSelection != nil)
+                         isTVEpisode: tvSelection != nil,
+                         fileName: homeVideo?.fileName(index: index, total: titlesToRip.count))
         }
         if let tv = tvSelection {
             let episodeNumbers = Set(tv.episodes.map { titles[$0].number })
@@ -137,6 +124,45 @@ extension MediaRipper {
             self.delegate?.mediaRipperDidComplete()
             self.isRipping = false
         }
+    }
+
+    /// Where the disc's files go: its home-video folder, or the output folder's
+    /// "<Movie (Year)>" (or media-type) layout, with a disc_info.json.
+    private func dvdOutputDirectory(dvdPath: String, configuration: RippingConfiguration,
+                                    homeVideo: HomeVideoInfo?) throws -> String {
+        if let home = homeVideo {
+            let folder = (configuration.outputDirectory as NSString).appendingPathComponent(home.folderName)
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            return folder
+        }
+        let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
+        let folder = organizedDirectory(for: configuration, mediaType: currentMediaType, fallbackName: movieName)
+        createDiscInfo(in: folder, mediaPath: dvdPath, mediaType: currentMediaType, movieName: movieName)
+        return folder
+    }
+
+    /// The titles to rip. A home video: every recording. A TV season disc:
+    /// every episode (not just the longest title), no "play all", and extras
+    /// only with bonus features on. Otherwise the main feature (and extras).
+    private func chooseDVDTitles(_ titles: [DVDTitle], configuration: RippingConfiguration,
+                                 homeVideo: HomeVideoInfo?) -> ([DVDTitle], TVEpisodeSelection?) {
+        if homeVideo != nil {
+            let chosen = HomeVideoDetector.titlesToRip(
+                durations: titles.map(\.duration),
+                cellKeys: titles.map { "\($0.vtsNumber)|\($0.cellRanges)" }).map { titles[$0] }
+            Logger.shared.log("Home video: ripping titles \(chosen.map(\.number))", level: .info,
+                              category: .dvdRipping)
+            return (chosen, nil)
+        }
+        if configuration.selectedTitles.isEmpty, let tv = Self.tvEpisodeSelection(for: titles) {
+            let chosen = (tv.episodes + (configuration.ripBonusFeatures ? tv.extras : [])).sorted()
+            Logger.shared.log("TV disc: episodes are titles \(tv.episodes.map { titles[$0].number }), "
+                              + "play-all \(tv.playAll.map { titles[$0].number }), "
+                              + "extras \(tv.extras.map { titles[$0].number })", level: .info, category: .dvdRipping)
+            return (chosen.map { titles[$0] }, tv)
+        }
+        return (filterTitlesToRip(titles: titles, selectedTitles: configuration.selectedTitles,
+                                  ripBonusFeatures: configuration.ripBonusFeatures), nil)
     }
 
     /// Sectors in the title set's title VOBs (VTS_xx_1.VOB onward), from their

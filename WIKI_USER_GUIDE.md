@@ -15,9 +15,10 @@ the [Installation Guide](INSTALLATION.md).
 6. [Blu-ray and MakeMKV](#blu-ray-and-makemkv)
 7. [TV series](#tv-series)
 8. [Music CDs](#music-cds)
-9. [Encoding](#encoding)
-10. [Scripts](#scripts)
-11. [Troubleshooting](#troubleshooting)
+9. [Photo, home-video and data discs](#photo-home-video-and-data-discs)
+10. [Encoding](#encoding)
+11. [Scripts](#scripts)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -178,6 +179,40 @@ You can add the CD to MusicBrainz so it's recognized next time.
 Video settings (codec, quality) don't affect CDs, so changing them doesn't re-rip
 your CDs.
 
+## Photo, home-video and data discs
+
+**Photo discs.** A CD or DVD that's mostly photos (a burned camera card with a `DCIM`
+folder, a Kodak Picture CD, a disc of JPEG, HEIC or RAW files):
+
+1. The first time, Spindle asks where photos go: the **Photos folder**, **Apple
+   Photos**, or **both**. Choose **Not Now** to leave the disc alone. You can change
+   the answer in Settings → Output & Routing (**Photo Discs Go To**).
+2. Every photo and camera clip is copied off the disc, and each copy is checked
+   against the original. Other files (viewer programs, `autorun.inf`) are left on
+   the disc. Then the disc ejects.
+3. Photos are filed by the date they were taken (from the camera's EXIF data, or
+   the file's date) as `Photos/2004/2004-07-14/IMG_0001.JPG`. Photos with no date go
+   in `Photos/Undated/`. A different photo with the same name gets ` (2)`.
+
+Spindle remembers each photo it has imported by its content, so the same photo on
+another disc, or twice on one disc, is imported only once. Apple Photos asks for
+permission the first time. If you don't allow it, the photos go to the Photos folder
+instead, so nothing is lost.
+
+**Home videos.** A video DVD on recordable media (DVD-R, DVD+R, DVD±RW, DVD-RAM),
+the kind a camcorder or DVD recorder makes, is ripped into the Home Videos folder
+instead of being looked up as a film. It's named by the date it was recorded (from
+the label if it's a date, otherwise the disc's creation date) and its label:
+`Home Videos/2004-07-14 Birthday Party/2004-07-14 Birthday Party.mkv`. Each recording
+on the disc gets its own file, numbered ` - 01`, ` - 02`. A burned copy of a film is
+treated as a home video too; move it if so.
+
+**Other data discs** are copied as they are into
+`Imported Discs/<disc name>/`, keeping their folders. Each file is checked against
+the disc; any that can't be read (a scratched disc) are listed in
+`Unreadable files.txt` in that folder. Inserting the same disc again updates its
+folder; a different disc with the same name gets ` (2)`.
+
 ## Encoding
 
 Choose the codec and quality in Settings → Encoding. The defaults (H.264, AAC, High)
@@ -218,6 +253,14 @@ Close other disc apps and reinsert the disc.
 **A TV disc ends up under Review Rips.** Hover over its name for the reason. Most
 often disc 2 was inserted before disc 1 of that season, or the disc label doesn't
 name the season. Choose TV Show to file it with a best guess.
+
+**Photos didn't go to Apple Photos.** Spindle wasn't allowed to add to it. Allow
+Spindle in System Settings → Privacy & Security → Photos; until then, photos are
+filed in the Photos folder.
+
+**A home DVD was looked up as a film, or a film went to Home Videos.** Spindle goes
+by the disc type: recordable discs are home videos, pressed discs are films. Move
+the files where they belong.
 
 **A movie ends up under Review Rips.** The app couldn't tell from the title lengths
 whether it's a movie or a TV season. Pick one there.

@@ -73,5 +73,9 @@
     <string>Spindle may save ripped files to your Documents folder.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Spindle may save ripped files to your Downloads folder.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Spindle adds photos from photo discs to Apple Photos when you choose Apple Photos as their destination.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Spindle adds photos from photo discs to Apple Photos when you choose Apple Photos as their destination. It never changes or removes photos already there.</string>
 </dict>
 </plist>

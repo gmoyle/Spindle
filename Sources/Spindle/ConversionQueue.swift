@@ -355,6 +355,10 @@ class ConversionQueue {
         // Video settings don't affect a CD rip; changing the video codec mustn't
         // re-rip every CD.
         if cfg.mediaType == .audioCD { return ["format": "flac"] }
+        if cfg.mediaType == .dataDisc { return ["format": "copy"] }
+        if cfg.mediaType == .photoDisc {
+            return ["format": "photos", "destination": (cfg.photoDestination ?? .folder).rawValue]
+        }
         var fingerprint = [
             "videoCodec": String(describing: cfg.videoCodec),
             "audioCodec": String(describing: cfg.audioCodec),
@@ -378,14 +382,21 @@ class ConversionQueue {
     /// The registry is keyed by disc identity (computed from the source disc), so
     /// it stays valid regardless of where the output ends up — including after
     /// content routing moves the folder into a Plex library root.
-    private func writeRipCompleteMarker(job: ConversionJob, outputFiles: [String]) {
-        guard let firstOutput = outputFiles.first else { return }
-        let stagingDir = (firstOutput as NSString).deletingLastPathComponent
+    /// - Parameter location: where a copy-only import (photo or data disc) was
+    ///   filed. Such imports are recorded even when every photo was a duplicate,
+    ///   and get no breadcrumb (it would land among the photos or the disc's files).
+    private func writeRipCompleteMarker(job: ConversionJob, outputFiles: [String], location: String? = nil) {
         let fingerprint = Self.settingsFingerprint(of: job.configuration)
-
-        // If content routing already moved this folder to a Plex library root,
-        // record that final location; otherwise the staging dir it still lives in.
-        let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) ?? stagingDir
+        let finalDir: String
+        if let location = location {
+            finalDir = location
+        } else {
+            guard let firstOutput = outputFiles.first else { return }
+            let stagingDir = (firstOutput as NSString).deletingLastPathComponent
+            // If content routing already moved this folder to a Plex library root,
+            // record that final location; otherwise the staging dir it still lives in.
+            finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) ?? stagingDir
+        }
 
         // Central registry (source of truth), keyed by disc identity so detection
         // is independent of where the files live. Uses the identity captured at
@@ -398,6 +409,7 @@ class ConversionQueue {
             settingsFingerprint: fingerprint,
             outputLocation: finalDir,
             completedAt: Date()))
+        guard location == nil else { return }
 
         // Per-folder breadcrumb (human-readable; also read by legacy detection).
         // Written into whichever directory still exists (routed folder if moved).
@@ -792,10 +804,8 @@ class ConversionQueue {
                 // Move the finished encode from local staging into the output
                 // directory in one step, so sync services (iCloud) never see
                 // a partially written file.
-                if FileManager.default.fileExists(atPath: encode.outputPath) {
-                    try? FileManager.default.removeItem(atPath: encode.outputPath)
-                }
-                try FileManager.default.moveItem(atPath: encode.stagingPath, toPath: encode.outputPath)
+                // Across volumes (a NAS library) it lands under a hidden name first.
+                try LibraryFiles.placeFile(encode.stagingPath, at: encode.outputPath, replacing: true)
                 outputFiles.append(encode.outputPath)
                 ripper.delegate?.mediaRipperDidUpdateStatus("Encoding complete: \(encode.outputPath)")
             } catch {
@@ -825,6 +835,23 @@ class ConversionQueue {
         // Content routing may already have moved their folder; record the final paths.
         if !ripper.directOutputFiles.isEmpty {
             outputFiles.append(contentsOf: Self.resolveRoutedPaths(ripper.directOutputFiles))
+        }
+
+        // Photo and data discs: file the copies read off the disc into the library.
+        var importLocation: String?
+        if encodeError == nil, let work = ripper.postEjectWork {
+            ripper.delegate?.mediaRipperDidUpdateStatus("Filing into the library...")
+            do {
+                let result = try work()
+                outputFiles.append(contentsOf: result.files)
+                importLocation = result.location
+                ripper.delegate?.mediaRipperDidUpdateStatus(result.summary)
+                Logger.shared.logQueue(result.summary, level: .info)
+            } catch {
+                encodeError = error
+                Logger.shared.logError(error, context: "Couldn't file the import into the library")
+                ripper.delegate?.mediaRipperDidUpdateStatus("Couldn't file the import: \(error.localizedDescription)")
+            }
         }
 
         ripper.removeStagingDirectories()
@@ -865,7 +892,7 @@ class ConversionQueue {
                     default: return false
                     }
                 }
-                self.writeRipCompleteMarker(job: job, outputFiles: outputFiles)
+                self.writeRipCompleteMarker(job: job, outputFiles: outputFiles, location: importLocation)
                 self.activeRippers[jobId] = nil
                 Logger.shared.logQueue("Job \(jobId) fully complete: \(outputFiles.count) file(s)", level: .info)
                 let snapshot = self.jobs
@@ -933,8 +960,13 @@ class ConversionQueue {
             requiredBytes = 50_000_000_000 // 50GB for Blu-ray
         case .bluray4K:
             requiredBytes = 100_000_000_000 // 100GB for 4K Blu-ray
-        case .audioCD, .photoDisc, .dataDisc:
-            requiredBytes = 2_000_000_000   // a CD or data DVD's worth of staging
+        case .audioCD:
+            requiredBytes = 2_000_000_000   // a CD's worth of staging
+        case .photoDisc, .dataDisc:
+            // Everything on the disc is copied to staging first.
+            let disc = try? fileManager.attributesOfFileSystem(forPath: job.sourcePath)
+            let used = ((disc?[.systemSize] as? Int64) ?? 0) - ((disc?[.systemFreeSize] as? Int64) ?? 0)
+            requiredBytes = max(used + used / 10, 1_000_000_000)
         case .unknown:
             requiredBytes = 50_000_000_000 // Default to safe amount
         }

@@ -212,18 +212,30 @@ extension MainViewController: ConversionQueueDelegate {
         queueEncodePhase = true
         progressIndicator.doubleValue = 0
         progressStatusLabel.isHidden = false
-        progressStatusLabel.stringValue = "Encoding to \(encodeFormat(forJob: jobId))..."
-        setDiscStatus("Encoding…")
+        progressStatusLabel.stringValue = phase2Label(forJob: jobId) + "..."
+        setDiscStatus(isCopyOnly(jobId) ? "Filing…" : "Encoding…")
     }
 
-    /// "FLAC" for a music CD, "MKV" for video.
-    private func encodeFormat(forJob jobId: UUID) -> String {
-        conversionQueue.getJob(id: jobId)?.mediaType == .audioCD ? "FLAC" : "MKV"
+    /// "Encoding to FLAC" for a music CD, "Encoding to MKV" for video,
+    /// "Filing into the library" for photo and data discs (nothing to encode).
+    private func phase2Label(forJob jobId: UUID) -> String {
+        if isCopyOnly(jobId) { return "Filing into the library" }
+        return conversionQueue.getJob(id: jobId)?.mediaType == .audioCD ? "Encoding to FLAC" : "Encoding to MKV"
+    }
+
+    private func isCopyOnly(_ jobId: UUID) -> Bool {
+        let kind = conversionQueue.getJob(id: jobId)?.mediaType
+        return kind == .photoDisc || kind == .dataDisc
     }
 
     func queueDidCompleteConversion(jobId: UUID, outputFiles: [String]) {
-        for file in outputFiles {
+        // A photo disc can bring hundreds of files; list a few.
+        let shown = outputFiles.count > 12 ? Array(outputFiles.prefix(5)) : outputFiles
+        for file in shown {
             appendToLog("Finished: \(file)")
+        }
+        if shown.count < outputFiles.count {
+            appendToLog("…and \(outputFiles.count - shown.count) more.")
         }
         showCompletionNotification()
         if extractingJobId == nil { resetRipUI() }
@@ -251,7 +263,7 @@ extension MainViewController: ConversionQueueDelegate {
             // Encode progress: a percentage of the title's runtime, not disc bytes
             let pct = min(max(progress, 0), 1)
             progressIndicator.doubleValue = pct * 100.0
-            progressStatusLabel.stringValue = "Encoding to \(encodeFormat(forJob: jobId))... \(Int(pct * 100))%"
+            progressStatusLabel.stringValue = phase2Label(forJob: jobId) + "... \(Int(pct * 100))%"
         } else {
             mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 0)
         }

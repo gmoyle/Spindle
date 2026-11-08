@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 Spindle: a native macOS (13+) disc-to-library importer (DVD / Blu-ray / HD DVD movies and TV
-seasons, music CDs; photo discs and other sources are planned in `ROADMAP.md`), written in Swift with programmatic AppKit
+seasons, music CDs, photo, home-video and data discs; other sources are planned in `ROADMAP.md`), written in Swift with programmatic AppKit
 (no SwiftUI, no storyboards). Built with SwiftPM. `AGENTS.md` is an older version of this file;
 where they differ, this file is current.
 
@@ -47,8 +47,9 @@ swiftlint lint
    TCC prompt. `DiscClassifier.classify(volumeAt:)` decides the disc kind (`DiscKind`, a typealias
    of `MediaRipper.MediaType`) from the volume's contents: video structures and audio CDs
    (cddafs AIFF tracks, `.TOC.plist`) on any volume, photo/data discs only when `diskutil` says
-   the volume is optical. Kinds without an importer yet (`isImportSupported == false`) are
-   logged and left in the drive. Under XCTest `startMonitoring` does nothing, so tests never
+   the volume is optical. Only `.unknown` is left in the drive. A `.dvd` whose diskutil
+   `OpticalMediaType` is recordable is a home video (`HomeVideoDetector`, decided in
+   `MainViewController.ripConfiguration`). Under XCTest `startMonitoring` does nothing, so tests never
    see, eject or rip a real disc.
 2. **Skip check**: `MainViewController.findCompletedRip` treats a disc as already ripped if
    (a) `PendingRoutingQueue` holds it, (b) `RipHistoryStore` has an entry whose `DiscIdentity`
@@ -97,6 +98,16 @@ swiftlint lint
      cover; each track is a `PendingEncode` to FLAC (`flacEncodeArguments`) whose output is the
      final `Music/Artist/Album (Year)/` path, so there's no routing step.
      `settingsFingerprint` for CDs is just `format: flac`.
+   - **Photo / data discs** (copy-only): `MediaRipper+PhotoDisc` / `+DataDisc` copy files to
+     staging with `VerifiedCopy` (SHA-256 while reading, then re-read) in phase 1 and set
+     `postEjectWork`, which `performEncodes` runs in phase 2 to file them
+     (`LibraryFiles.placeFile` / `fileFolder`). Photos are filed by EXIF date and deduped by
+     hash through `PhotoIndex` (`Application Support/Spindle/photo-index.json`); Apple Photos
+     goes through PhotoKit add-only (`ApplePhotosImporter`, injectable in tests). These record
+     a history `location` and write no `rip_complete.json`.
+   - **Home videos**: `configuration.homeVideo` makes the DVD ripper write straight into
+     `Home Videos/<date label>/`, rip every recording (`HomeVideoDetector.titlesToRip`) and
+     skip routing.
 5. **Libraries and metadata**: `LibraryKind` names each library (Movies, TV Shows, Music,
    Photos, Home Videos, Imported Discs); `SettingsManager.libraryRoot(_:)` gives its root, with
    the newer libraries defaulting next to the Movies root. Title lookups go through

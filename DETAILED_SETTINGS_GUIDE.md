@@ -38,9 +38,10 @@ recorded in. A folder on a drive or NAS that isn't connected still counts as rip
 | **TV Shows Folder** | `~/Plex/TVShows` | Library folder for TV seasons |
 | **TMDB API Key** | Empty | Your own free key from themoviedb.org. Used to name TV episodes (in disc order) and to look up movies; without it, OMDb is used |
 | **Music Folder** | Next to the Movies folder (`…/Music`) | Where music CDs are ripped to, as `Artist/Album (Year)/` |
-| **Photos Folder** | Not set | For photo discs (coming); asked the first time one is inserted |
-| **Home Videos Folder** | Next to the Movies folder | For camcorder and home-made DVDs (coming) |
-| **Imported Discs Folder** | Next to the Movies folder | For other data discs (coming) |
+| **Photos Folder** | Not set | Where photo discs are filed by date (`2004/2004-07-14/`); asked the first time one is inserted |
+| **Home Videos Folder** | Next to the Movies folder | Camcorder and recorder DVDs (recordable media), named by date |
+| **Imported Discs Folder** | Next to the Movies folder | Other data discs, copied as they are into a folder named after the disc |
+| **Photo Discs Go To** | Ask the first time | The Photos folder, Apple Photos, or both |
 
 Library folders can be on a NAS. Moves to another volume copy each file under a hidden
 name and rename it when complete, so Plex never picks up a partial file. Ripping the

@@ -13,8 +13,9 @@
 Spindle (formerly **AutoRip2MKV**) is a native macOS app that imports discs into
 your media library automatically. It rips DVDs and Blu-rays to MKV and files them
 into Movies and TV Shows folders with each TV episode named, and rips music CDs to
-tagged FLAC in your Music folder. Photo discs, and importing from folders, USB drives
-and Apple Photos, are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
+tagged FLAC in your Music folder. Photo discs are filed by date (or added to Apple
+Photos), home-made DVDs go to Home Videos, and other data discs are copied as they are.
+Importing from folders, USB drives and Apple Photos is next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no setup** using open-source libdvdcss; **Blu-ray** decryption is handled by [MakeMKV](https://www.makemkv.com/) (see [Blu-ray support](#blu-ray-support-requires-makemkv)).
 
 ## Features
 
@@ -25,6 +26,8 @@ and Apple Photos, are next (see the [Roadmap](ROADMAP.md)). **DVDs rip with no s
 - **Damaged discs** - Unreadable sectors are retried, then skipped (up to a limit) instead of failing the rip
 - **TV seasons** - Every episode ripped (not the "play all" title), named from TMDB or OMDb, filed as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`; disc 2 picks up where disc 1 stopped
 - **Music CDs** - Identified on MusicBrainz, ripped to FLAC with tags and cover art, filed as `Music/Artist/Album (Year)/01 - Title.flac`
+- **Photo discs** - Each photo copied and verified, filed by the date it was taken (`Photos/2004/2004-07-14/`) and/or added to Apple Photos, duplicates skipped
+- **Home videos and data discs** - Camcorder and recorder DVDs ripped into Home Videos, named by date; other data discs copied as they are into Imported Discs
 - **Blu-ray Support** - Via MakeMKV (auto-detected once installed); the app helps you install it, and can update an expired build for you
 - **DVDs need nothing extra** - No MakeMKV, key database, or other tools required for DVD ripping
 - **All tracks captured** - Every audio and subtitle track, tagged with languages from the disc
@@ -187,7 +190,8 @@ Key files in `Sources/Spindle/` (see [CLAUDE.md](CLAUDE.md) for the full archite
 | `DriveDetector.swift` | Watches for disc mounts and unmounts |
 | `MainViewController*.swift` | Main window, skip-already-ripped check, MakeMKV dialogs |
 | `ConversionQueue.swift` | Job queue: disc read, then background encode |
-| `MediaRipper*.swift` | Per-format rippers (DVD, Blu-ray, HD DVD) and FFmpeg encoding |
+| `MediaRipper*.swift` | Per-format importers (DVD, Blu-ray, HD DVD, audio CD, photo and data discs) and FFmpeg encoding |
+| `PhotoImport.swift`, `HomeVideo.swift`, `LibraryFiles.swift` | Photo dates, duplicates and Apple Photos; home-video naming; verified copies and safe moves into libraries |
 | `DVDStructureParser.swift`, `DVDDecryptor.swift` | DVD IFO parsing and libdvdcss reads |
 | `MakeMKVBackend.swift`, `MakeMKVInstaller.swift` | Blu-ray via `makemkvcon`, MakeMKV install/update |
 | `ContentRouter.swift`, `ContentTypeClassifier.swift` | Movies / TV Shows routing |

@@ -78,6 +78,20 @@ class MediaRipper {
     }
     var routeAfterEncodes: PendingRoute?
 
+    /// What a copy-only import (photo and data discs) filed into the library
+    /// after the disc was ejected.
+    struct PostEjectResult {
+        /// Files now in the library.
+        let files: [String]
+        /// Recorded as the import's location (a folder, or "Apple Photos").
+        let location: String
+        /// One line for the log.
+        let summary: String
+    }
+    /// Copy-only imports read the disc into local staging in phase 1; this
+    /// files the staged copies into the library in phase 2, after eject.
+    var postEjectWork: (() throws -> PostEjectResult)?
+
     /// Stop any running encode and discard all staging files (decrypted titles
     /// and partial encodes). Used before a retry re-reads the disc and when a job
     /// is abandoned, so nothing is left running or filling the staging folder.
@@ -92,6 +106,7 @@ class MediaRipper {
         }
         removeStagingDirectories()
         pendingEncodes.removeAll()
+        postEjectWork = nil
     }
     func removeStagingDirectories() {
         for path in stagingDirectoriesToRemove { try? FileManager.default.removeItem(atPath: path) }
@@ -172,6 +187,10 @@ class MediaRipper {
     var ripBonusFeatures: Bool = false
     // Audio CD: the album looked up before queueing (nil: look it up during the rip)
     var album: AlbumRelease? = nil
+    // Photo disc: where the photos go (nil: the Photos folder)
+    var photoDestination: PhotoDestination? = nil
+    // A burned DVD with no commercial title: ripped into Home Videos, named by date
+    var homeVideo: HomeVideoInfo? = nil
 
         enum VideoCodec {
             case h264, h265, av1, vp9
@@ -293,8 +312,10 @@ class MediaRipper {
         case .audioCD:
             // No withRetries: a retry would queue every track's encode twice.
             try performAudioCDRipping(cdPath: mediaPath, configuration: configuration)
-        case .photoDisc, .dataDisc:
-            throw MediaRipperError.importNotSupportedYet(currentMediaType)
+        case .photoDisc:
+            try performPhotoDiscImport(discPath: mediaPath, configuration: configuration)
+        case .dataDisc:
+            try performDataDiscImport(discPath: mediaPath, configuration: configuration)
         case .unknown:
             throw MediaRipperError.unsupportedMediaType
         }
