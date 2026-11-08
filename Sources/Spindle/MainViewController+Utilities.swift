@@ -155,18 +155,7 @@ extension MainViewController {
         }
 
         appendToLog("Ejecting disk from \(selectedDrive.name)...")
-
-        DispatchQueue.global(qos: .background).async {
-            let result = self.ejectDisk(at: selectedDrive.devicePath)
-
-            DispatchQueue.main.async {
-                if result {
-                    self.appendToLog("Disk ejected successfully")
-                } else {
-                    self.appendToLog("Failed to eject disk")
-                }
-            }
-        }
+        ejectWhenPossible(devicePath: selectedDrive.devicePath, name: selectedDrive.displayName)
     }
 
     func ejectDisk(at devicePath: String) -> Bool {
@@ -248,7 +237,7 @@ extension MainViewController {
         }
     }
 
-    private func getSelectedDrive() -> OpticalDrive? {
+    func getSelectedDrive() -> OpticalDrive? {
         let selectedIndex = sourceDropDown.indexOfSelectedItem
 
         if selectedIndex >= 0 && selectedIndex < detectedDrives.count {
