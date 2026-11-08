@@ -46,12 +46,14 @@ extension MainViewController {
     }
 
     /// The rip settings for a disc of this kind, from Settings and the main
-    /// window. Music CDs go straight into the Music library; video discs go to
-    /// the output folder and are routed to Movies or TV Shows afterwards.
-    func ripConfiguration(for mediaType: MediaRipper.MediaType) -> MediaRipper.RippingConfiguration {
-        MediaRipper.RippingConfiguration(
-            outputDirectory: mediaType == .audioCD
-                ? settingsManager.libraryRoot(.music) : outputPathField.stringValue,
+    /// window. Music, photo, data and home-video discs go straight into their
+    /// library; other video discs go to the output folder and are routed to
+    /// Movies or TV Shows afterwards.
+    func ripConfiguration(for mediaType: MediaRipper.MediaType,
+                          mountPoint: String? = nil) -> MediaRipper.RippingConfiguration {
+        let homeVideo = homeVideoInfo(for: mediaType, mountPoint: mountPoint)
+        return MediaRipper.RippingConfiguration(
+            outputDirectory: outputDirectory(for: mediaType, homeVideo: homeVideo),
             selectedTitles: [], // Rip all titles
             videoCodec: settingsManager.videoCodec == "h265" ? .h265 : .h264,
             audioCodec: settingsManager.audioCodec == "ac3" ? .ac3 : .aac,
@@ -67,10 +69,12 @@ extension MainViewController {
             includeChapters: true,
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: mediaType == .audioCD ? nil : resolvedDiscTitle,
+            plexName: mediaType.isVideo && homeVideo == nil ? resolvedDiscTitle : nil,
             hardwareAcceleration: settingsManager.hardwareAcceleration,
             ripBonusFeatures: settingsManager.ripBonusFeatures,
-            album: mediaType == .audioCD ? resolvedAlbum : nil
+            album: mediaType == .audioCD ? resolvedAlbum : nil,
+            photoDestination: mediaType == .photoDisc ? settingsManager.photoDestination : nil,
+            homeVideo: homeVideo
         )
     }
 }

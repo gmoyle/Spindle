@@ -92,8 +92,9 @@ final class DiscClassifierTests: XCTestCase {
         XCTAssertTrue(DiscKind.dvd.isImportSupported)
         XCTAssertTrue(DiscKind.bluray4K.isImportSupported)
         XCTAssertTrue(DiscKind.audioCD.isImportSupported)
-        XCTAssertFalse(DiscKind.photoDisc.isImportSupported)
-        XCTAssertFalse(DiscKind.dataDisc.isImportSupported)
+        XCTAssertTrue(DiscKind.photoDisc.isImportSupported)
+        XCTAssertTrue(DiscKind.dataDisc.isImportSupported)
+        XCTAssertFalse(DiscKind.unknown.isImportSupported)
     }
 
     func testKindsMapToLibraries() {

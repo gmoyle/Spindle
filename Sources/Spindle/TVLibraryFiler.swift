@@ -191,36 +191,8 @@ enum TVLibraryFiler {
     /// name is replaced only when `replacing`; otherwise this one gets " (2)".
     static func place(_ source: String, at requested: String, replacing: Bool,
                       fileManager: FileManager = .default) throws {
-        let folder = (requested as NSString).deletingLastPathComponent
-        let device = { (path: String) in (try? fileManager.attributesOfItem(atPath: path))?[.systemNumber] as? Int }
-        var destination = requested
-        if fileManager.fileExists(atPath: requested) {
-            if replacing {
-                try fileManager.removeItem(atPath: requested)
-            } else {
-                let base = (requested as NSString).deletingPathExtension
-                let ext = (requested as NSString).pathExtension
-                var n = 2
-                repeat {
-                    destination = "\(base) (\(n)).\(ext)"
-                    n += 1
-                } while fileManager.fileExists(atPath: destination)
-            }
-        }
-        if let a = device(source), let b = device(folder), a == b {
-            try fileManager.moveItem(atPath: source, toPath: destination)
-        } else {
-            let partial = (folder as NSString).appendingPathComponent(
-                ".\((destination as NSString).lastPathComponent).partial-\(UUID().uuidString.prefix(8))")
-            do {
-                try fileManager.copyItem(atPath: source, toPath: partial)
-                try fileManager.moveItem(atPath: partial, toPath: destination)
-            } catch {
-                try? fileManager.removeItem(atPath: partial)
-                throw error
-            }
-            try? fileManager.removeItem(atPath: source)
-        }
+        let destination = try LibraryFiles.placeFile(source, at: requested, replacing: replacing,
+                                                     fileManager: fileManager)
         ContentRouter.recordFileMove(from: source, to: destination)
     }
 

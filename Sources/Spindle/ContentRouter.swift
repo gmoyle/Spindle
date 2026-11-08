@@ -122,27 +122,10 @@ enum ContentRouter {
         let root = settings.libraryRoot(LibraryKind(contentType: type))
         guard !root.isEmpty else { throw RouteError.rootNotConfigured(type) }
 
-        try? fileManager.createDirectory(atPath: root, withIntermediateDirectories: true)
-
-        let folderName = (folderPath as NSString).lastPathComponent
-        var destination = (root as NSString).appendingPathComponent(folderName)
-
+        let destination: String
         do {
-            if fileManager.fileExists(atPath: destination) {
-                if let identity = discIdentity,
-                   let previous = history.entry(forIdentity: identity),
-                   standardized(previous.outputLocation) == standardized(destination) {
-                    try replaceFiles(from: folderPath, into: destination, fileManager: fileManager)
-                    recordMove(from: folderPath, to: destination)
-                    history.updateOutputLocation(from: folderPath, to: destination)
-                    return destination
-                }
-                // Someone else's folder of the same name: don't clobber it.
-                destination = uniqueDestination(base: destination, fileManager: fileManager)
-            }
-            try moveFolder(folderPath, to: destination, fileManager: fileManager)
-        } catch let error as RouteError {
-            throw error
+            destination = try LibraryFiles.fileFolder(folderPath, into: root, discIdentity: discIdentity,
+                                                      history: history, fileManager: fileManager)
         } catch {
             throw RouteError.moveFailed(error.localizedDescription)
         }
@@ -152,7 +135,7 @@ enum ContentRouter {
         // so we both update any existing entry now and remember the move so a
         // later registry write can resolve the staging path to its final home.
         recordMove(from: folderPath, to: destination)
-        RipHistoryStore.shared.updateOutputLocation(from: folderPath, to: destination)
+        history.updateOutputLocation(from: folderPath, to: destination)
 
         return destination
     }
@@ -211,80 +194,5 @@ enum ContentRouter {
     static func finalLocation(forStagingPath path: String) -> String? {
         recentMovesLock.lock(); defer { recentMovesLock.unlock() }
         return recentMoves.removeValue(forKey: path)
-    }
-
-    private static func standardized(_ path: String) -> String {
-        ((path as NSString).standardizingPath as NSString).resolvingSymlinksInPath
-    }
-
-    private static func isSameVolume(_ a: String, _ b: String, fileManager: FileManager) -> Bool {
-        let device = { (path: String) in (try? fileManager.attributesOfItem(atPath: path))?[.systemNumber] as? Int }
-        guard let x = device(a), let y = device(b) else { return false }
-        return x == y
-    }
-
-    /// Rename when possible; across volumes, copy to a hidden sibling of the
-    /// destination, rename that into place, then remove the source.
-    private static func moveFolder(_ source: String, to destination: String, fileManager: FileManager) throws {
-        let parent = (destination as NSString).deletingLastPathComponent
-        if isSameVolume(source, parent, fileManager: fileManager) {
-            try fileManager.moveItem(atPath: source, toPath: destination)
-            return
-        }
-        let partial = (parent as NSString).appendingPathComponent(
-            ".\((destination as NSString).lastPathComponent).partial-\(UUID().uuidString.prefix(8))")
-        do {
-            try fileManager.copyItem(atPath: source, toPath: partial)
-            try fileManager.moveItem(atPath: partial, toPath: destination)
-        } catch {
-            try? fileManager.removeItem(atPath: partial)
-            throw error
-        }
-        try? fileManager.removeItem(atPath: source)
-    }
-
-    /// Re-rip of the same disc: put each of the new rip's files into the
-    /// existing library folder, replacing same-named ones. Each file lands via
-    /// a hidden temporary name and a rename; the old file is only removed once
-    /// the new one is fully copied.
-    private static func replaceFiles(from source: String, into destination: String,
-                                     fileManager: FileManager) throws {
-        let names = try fileManager.contentsOfDirectory(atPath: source).filter { $0 != ".DS_Store" }
-        for name in names {
-            let from = (source as NSString).appendingPathComponent(name)
-            let to = (destination as NSString).appendingPathComponent(name)
-            let partial = (destination as NSString).appendingPathComponent(
-                ".\(name).partial-\(UUID().uuidString.prefix(8))")
-            do {
-                try fileManager.copyItem(atPath: from, toPath: partial)
-                if fileManager.fileExists(atPath: to) {
-                    // replaceItemAt isn't supported on every network filesystem;
-                    // the new copy is complete, so swapping by hand is safe.
-                    do {
-                        _ = try fileManager.replaceItemAt(URL(fileURLWithPath: to),
-                                                          withItemAt: URL(fileURLWithPath: partial))
-                    } catch {
-                        try fileManager.removeItem(atPath: to)
-                        try fileManager.moveItem(atPath: partial, toPath: to)
-                    }
-                } else {
-                    try fileManager.moveItem(atPath: partial, toPath: to)
-                }
-            } catch {
-                try? fileManager.removeItem(atPath: partial)
-                throw error
-            }
-        }
-        try? fileManager.removeItem(atPath: source)
-    }
-
-    /// Append " (2)", " (3)", … until the path is free.
-    private static func uniqueDestination(base: String, fileManager: FileManager) -> String {
-        var n = 2
-        while true {
-            let candidate = "\(base) (\(n))"
-            if !fileManager.fileExists(atPath: candidate) { return candidate }
-            n += 1
-        }
     }
 }

@@ -36,6 +36,8 @@ class DetailedSettingsWindowController: NSWindowController {
     private static let extraLibraries: [LibraryKind] = [.music, .photos, .homeVideos, .importedDiscs]
     private var tvShowsRootField: NSTextField!
     private var tmdbKeyField: NSTextField!
+    /// "Ask the first time" + each PhotoDestination, in that order.
+    private var photoDestinationPopup: NSPopUpButton?
 
     // Quality & Codec Section
     private var qualityBox: NSBox!
@@ -356,6 +358,13 @@ class DetailedSettingsWindowController: NSWindowController {
             sectionStackView.addArrangedSubview(
                 createLabelControlButtonRow(label: label, control: field, button: browse))
         }
+
+        // Where photo discs go; empty until the first photo disc asks.
+        let photoLabel = NSTextField(labelWithString: "Photo Discs Go To:")
+        let photoPopup = NSPopUpButton()
+        photoPopup.addItems(withTitles: ["Ask the first time"] + PhotoDestination.allCases.map(\.displayName))
+        photoDestinationPopup = photoPopup
+        sectionStackView.addArrangedSubview(createLabelControlRow(label: photoLabel, control: photoPopup))
 
         // TMDB names TV episodes (with runtimes) and movies; OMDb is the fallback.
         let tmdbLabel = NSTextField(labelWithString: "TMDB API Key:")
@@ -693,6 +702,8 @@ class DetailedSettingsWindowController: NSWindowController {
         moviesRootField.stringValue = settingsManager.moviesRootDirectory
         tvShowsRootField.stringValue = settingsManager.tvShowsRootDirectory
         tmdbKeyField?.stringValue = settingsManager.tmdbAPIKey
+        photoDestinationPopup?.selectItem(at: settingsManager.photoDestination
+            .flatMap { PhotoDestination.allCases.firstIndex(of: $0) }.map { $0 + 1 } ?? 0)
         for (kind, field) in extraLibraryFields {
             // Photos stays empty until chosen, so the first photo disc can ask.
             field.stringValue = kind == .photos && !settingsManager.hasChosenLibraryRoot(.photos)
@@ -828,6 +839,10 @@ class DetailedSettingsWindowController: NSWindowController {
                 NSString(string: tvShowsRootField.stringValue).expandingTildeInPath
         }
         if let field = tmdbKeyField { settingsManager.tmdbAPIKey = field.stringValue }
+        if let popup = photoDestinationPopup, popup.indexOfSelectedItem >= 0 {
+            let index = popup.indexOfSelectedItem
+            settingsManager.photoDestination = index == 0 ? nil : PhotoDestination.allCases[index - 1]
+        }
         // Save only a changed folder: saving the shown default would pin it, and
         // Photos would never ask.
         for (kind, field) in extraLibraryFields {

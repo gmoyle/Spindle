@@ -18,6 +18,8 @@
     <true/>
     <key>com.apple.security.files.bookmarks.document-scope</key>
     <true/>
+    <key>com.apple.security.personal-information.photos-library</key>
+    <true/>
     <key>com.apple.security.network.client</key>
     <true/>
     <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>

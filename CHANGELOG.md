@@ -8,10 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### ✨ Renamed to Spindle
-- **AutoRip2MKV is now Spindle**, as it grows from a DVD/Blu-ray ripper into a disc-to-library importer (music CDs and TV episodes now; photo discs are planned, see `ROADMAP.md`).
+- **AutoRip2MKV is now Spindle**, as it grows from a DVD/Blu-ray ripper into a disc-to-library importer (movies, TV episodes, music CDs, photo, home-video and data discs; folders, USB drives and Apple Photos are planned, see `ROADMAP.md`).
 - The app, its bundle ID (`com.gmoyle.spindle`), data folder (`~/Library/Application Support/Spindle`), cache folder and DMG use the new name.
 - On first launch, settings, rip history, logs and a downloaded ffmpeg are moved over from AutoRip2MKV, so already-ripped discs are still recognized. macOS asks for disc access again, because the bundle ID changed.
 - Pre/post-processing scripts get `SPINDLE_*` environment variables instead of `AUTORIP_*`.
+
+### 📷 Photo, home-video and data discs
+- **Photo discs** (a burned camera card, Kodak Picture CD, a CD or DVD of photos): every photo and camera clip is copied off the disc and checked against the original. Each is then filed by the date it was taken, as `Photos/2004/2004-07-14/IMG_0001.JPG`; photos with no date go in `Photos/Undated/`.
+- **Duplicates are skipped**: Spindle remembers every photo it has imported by its content, so the same photo on another disc, twice on one disc, or already in the folder isn't imported again. The disc is never changed.
+- **The first photo disc asks where photos go**: the Photos folder, Apple Photos, or both. You can change this in Settings → Output & Routing (**Photo Discs Go To**). Apple Photos asks for permission the first time; if it isn't allowed, the photos go to the Photos folder instead.
+- **Home videos**: a video DVD on recordable media (DVD±R, DVD±RW, DVD-RAM), from a camcorder or DVD recorder, is ripped into Home Videos. It's named by date, e.g. `Home Videos/2004-07-14 Birthday Party/2004-07-14 Birthday Party.mkv`, with every recording on the disc numbered, and isn't looked up or routed as a movie.
+- **Other data discs** are copied as they are into `Imported Discs/<disc name>/`, each file checked. Files that can't be read are listed in `Unreadable files.txt`. Inserting the same disc again updates its folder; a different disc with the same name gets ` (2)`.
+- Photo and data discs are told apart by their contents, so two discs both labelled `CDROM` aren't mistaken for each other.
+- Finished encodes moved to another volume (a NAS) now land under a hidden name and are renamed into place, so a media server never sees half a file.
 
 ### 📺 TV series
 - **TV season discs are ripped episode by episode and named**: Spindle recognizes a season disc from its title lengths, rips every episode (a DVD used to rip only the longest title, and a Blu-ray skipped anything under an hour), skips the "play all" title, and keeps extras only with bonus features on.
@@ -28,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Start Ripping** works for Blu-rays and CDs. It used to accept only discs with a `VIDEO_TS` folder.
 
 ### 🧱 Groundwork for new disc kinds
-- **Disc detection by contents**: one classifier decides what a disc is: DVD, Blu-ray (and UHD), HD DVD, audio CD, photo disc or data disc. Photo and data discs count only on optical media, so a USB stick or camera card is never imported. Audio CDs, photo discs and data discs are recognized and noted in the log, but not imported yet.
+- **Disc detection by contents**: one classifier decides what a disc is: DVD, Blu-ray (and UHD), HD DVD, audio CD, photo disc or data disc. Photo and data discs count only on optical media, so a USB stick or camera card is never imported. Every recognized kind is imported (see above).
 - **Library folders per kind**: Settings → Output & Routing has Music, Photos, Home Videos and Imported Discs folders. Unless you change them, they sit next to your Movies folder (e.g. `/Volumes/Media/Music`). Photos stays unset, so the first photo disc can ask where photos go.
 - **Metadata providers**: movie lookup (OMDb) sits behind a provider interface that TMDB and MusicBrainz will plug into.
 

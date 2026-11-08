@@ -457,7 +457,8 @@ class MainViewController: NSViewController {
 
         // Check if we have a detected disc
         guard let currentDrive = detectedDrives.first else {
-            showAlert(title: "No Disc Detected", message: "Insert a DVD, Blu-ray or music CD to start ripping.")
+            showAlert(title: "No Disc Detected",
+                      message: "Insert a DVD, Blu-ray, music CD, photo disc or data disc to start.")
             return
         }
 
@@ -491,11 +492,17 @@ class MainViewController: NSViewController {
             return
         }
 
-        let configuration = ripConfiguration(for: mediaType)
+        if mediaType == .photoDisc {
+            var proceed = false
+            askPhotoDestinationIfNeeded { proceed = $0 }
+            guard proceed else { return }
+        }
+
+        let configuration = ripConfiguration(for: mediaType, mountPoint: currentDrive.mountPoint)
 
         saveCurrentSettings()
 
-        let discTitle = resolvedDiscTitle ?? currentDrive.name
+        let discTitle = queueTitle(for: currentDrive, configuration: configuration)
         appendToLog("Queued: \(discTitle) (\(mediaType.displayName))")
 
         conversionQueue.addJob(
@@ -534,7 +541,7 @@ class MainViewController: NSViewController {
         updateDriveDropdown()
 
         if detectedDrives.isEmpty {
-            appendToLog("No discs detected. Insert a DVD, Blu-ray or music CD.")
+            appendToLog("No discs detected. Insert a DVD, Blu-ray, music CD, photo or data disc.")
         } else {
             appendToLog("Found \(detectedDrives.count) disc(s):")
             for drive in detectedDrives {
@@ -559,7 +566,7 @@ class MainViewController: NSViewController {
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
             resolvedDiscTitle = nil
-            sourceLabel.stringValue = "No disc detected – insert a DVD, Blu-ray or music CD"
+            sourceLabel.stringValue = "No disc detected – insert a DVD, Blu-ray, CD or data disc"
             ripButton.isEnabled = false
         } else {
             setDiscStatus(queueRipInProgress ? "Ripping…" : "Ready to rip")
@@ -653,11 +660,10 @@ class MainViewController: NSViewController {
 extension MainViewController: DriveDetectorDelegate {
     func driveDetector(_ detector: DriveDetector, didDetectNewDisc drive: OpticalDrive) {
         DispatchQueue.main.async {
-            // Recognized but no importer yet (music CDs, photo and data discs):
-            // say what it is and leave it alone.
+            // Not a disc Spindle can read: say so and leave it alone.
             guard drive.type.isImportSupported else {
                 self.appendToLog("\(drive.type.displayName) detected: \(drive.name). "
-                    + "Spindle can't import \(drive.type.displayName.lowercased())s yet, so it was left in the drive.")
+                    + "Spindle can't import it, so it was left in the drive.")
                 return
             }
             self.detectedDrives.append(drive)
@@ -667,6 +673,26 @@ extension MainViewController: DriveDetectorDelegate {
             self.updateDriveDropdown()
             // Auto-rip only after the lookup resolves (or fails) so the rip is
             // named properly from the start: "Movie (Year)", or Artist / Album.
+            switch drive.type {
+            case .photoDisc:
+                self.askPhotoDestinationIfNeeded { proceed in
+                    if proceed {
+                        self.autoStartRipping(for: drive)
+                    } else {
+                        self.appendToLog("Photo disc left in the drive. Click Start Ripping to import it later.")
+                    }
+                }
+                return
+            case .dataDisc:
+                self.autoStartRipping(for: drive)
+                return
+            case .dvd where self.homeVideoInfo(for: .dvd, mountPoint: drive.mountPoint) != nil:
+                self.appendToLog("Recordable DVD: importing it as a home video.")
+                self.autoStartRipping(for: drive)
+                return
+            default:
+                break
+            }
             if drive.type == .audioCD {
                 self.lookupAlbum(forCDAt: drive.mountPoint) { album in
                     self.resolvedAlbum = album
@@ -1187,7 +1213,7 @@ extension MainViewController: DriveDetectorDelegate {
 
         appendToLog("Auto-starting rip of \(drive.displayName)...")
 
-        let configuration = ripConfiguration(for: mediaType)
+        let configuration = ripConfiguration(for: mediaType, mountPoint: drive.mountPoint)
 
         // Skip discs already ripped with the same settings; a settings change
         // re-rips automatically. Hold Option on insert (or use Start Ripping)
@@ -1221,7 +1247,7 @@ extension MainViewController: DriveDetectorDelegate {
 
         saveCurrentSettings()
 
-        let autoRipTitle = resolvedDiscTitle ?? drive.name
+        let autoRipTitle = queueTitle(for: drive, configuration: configuration)
         let autodriveTypeString = drive.type.displayName
         appendToLog("Queued: \(autoRipTitle) (\(autodriveTypeString))")
 
