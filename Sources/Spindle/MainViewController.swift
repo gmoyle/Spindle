@@ -47,6 +47,8 @@ class MainViewController: NSViewController {
 
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
+    /// Discs whose eject macOS refused while the Mac was locked.
+    internal let deferredEjects = DeferredEjects()
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
     internal var resolvedDiscTitle: String? = nil
@@ -73,6 +75,7 @@ class MainViewController: NSViewController {
         refreshDrives()
         driveDetector.delegate = self
         driveDetector.startMonitoring()
+        observeScreenUnlock()
         
         // Check FFmpeg and hardware acceleration on startup
         checkFFmpegAndHardwareAcceleration()
@@ -456,7 +459,12 @@ class MainViewController: NSViewController {
         }
 
         // Check if we have a detected disc
-        guard let currentDrive = detectedDrives.first else {
+        // The disc chosen in the Source menu (or the newest), never one that
+        // has left the drive.
+        let driveCount = detectedDrives.count
+        detectedDrives.removeAll { !FileManager.default.fileExists(atPath: $0.mountPoint) }
+        if detectedDrives.count != driveCount { updateDriveDropdown() }
+        guard let currentDrive = getSelectedDrive() ?? detectedDrives.last else {
             showAlert(title: "No Disc Detected",
                       message: "Insert a DVD, Blu-ray, music CD, photo disc or data disc to start.")
             return
@@ -716,6 +724,7 @@ extension MainViewController: DriveDetectorDelegate {
     func driveDetector(_ detector: DriveDetector, didEjectDisc drive: OpticalDrive) {
         DispatchQueue.main.async {
             self.detectedDrives.removeAll { $0.mountPoint == drive.mountPoint }
+            self.deferredEjects.remove(devicePath: drive.devicePath)
             self.resolvedDiscTitle = nil
             self.resolvedAlbum = nil
             self.appendToLog("Disc ejected: \(drive.displayName)")
@@ -1230,16 +1239,7 @@ extension MainViewController: DriveDetectorDelegate {
                     // drive dropdown happens to point at (ejectCurrentDisk uses
                     // the dropdown selection, which may differ).
                     appendToLog("Auto-ejecting \(drive.displayName)...")
-                    let devicePath = drive.devicePath
-                    let name = drive.displayName
-                    DispatchQueue.global(qos: .background).async { [weak self] in
-                        let ok = self?.ejectDisk(at: devicePath) ?? false
-                        DispatchQueue.main.async {
-                            self?.appendToLog(ok
-                                ? "\(name) ejected — ready for next disc."
-                                : "Failed to eject \(name) — manual ejection may be required.")
-                        }
-                    }
+                    ejectWhenPossible(devicePath: drive.devicePath, name: drive.displayName)
                 }
                 return
             }
@@ -1274,18 +1274,7 @@ extension MainViewController: ConversionQueueEjectionDelegate {
         // Find the drive that matches the source path
         if let drive = detectedDrives.first(where: { $0.mountPoint == sourcePath }) {
             appendToLog("Auto-ejecting \(drive.displayName) after successful extraction...")
-
-            DispatchQueue.global(qos: .background).async {
-                let result = self.ejectDisk(at: drive.devicePath)
-
-                DispatchQueue.main.async {
-                    if result {
-                        self.appendToLog("\(drive.displayName) ejected successfully - ready for next disc")
-                    } else {
-                        self.appendToLog("Failed to eject \(drive.displayName) - manual ejection may be required")
-                    }
-                }
-            }
+            ejectWhenPossible(devicePath: drive.devicePath, name: drive.displayName)
         } else {
             appendToLog("Disc reading complete. Could not find drive for auto-ejection.")
         }
