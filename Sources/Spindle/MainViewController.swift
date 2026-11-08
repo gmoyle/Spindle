@@ -35,6 +35,7 @@ class MainViewController: NSViewController {
     internal var autoRipCheckbox: NSButton!
     internal var autoEjectCheckbox: NSButton!
     internal var skipRippedCheckbox: NSButton!
+    internal var keepAwakeCheckbox: NSButton!
     internal var settingsButton: NSButton!
     internal var reviewRipsButton: NSButton!
     private var routingReviewWindowController: RoutingReviewWindowController?
@@ -212,6 +213,18 @@ class MainViewController: NSViewController {
         )
         skipRippedCheckbox.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(skipRippedCheckbox)
+
+        keepAwakeCheckbox = NSButton(
+            checkboxWithTitle: "Keep this Mac awake and unlocked while Spindle is open",
+            target: self,
+            action: #selector(keepAwakeToggled)
+        )
+        keepAwakeCheckbox.toolTip = "macOS won't mount or eject discs while the Mac is locked. "
+            + "With this on, the display stays on and the Mac doesn't lock by itself, so you can "
+            + "keep inserting discs without unlocking. Anyone at the Mac can use it meanwhile. "
+            + "Locking it yourself still locks it."
+        keepAwakeCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(keepAwakeCheckbox)
 
         settingsButton = NSButton(title: "Settings...", target: self, action: #selector(showSettings))
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -646,6 +659,15 @@ class MainViewController: NSViewController {
     @objc internal func skipRippedToggled() {
         settingsManager.skipRippedDiscs = skipRippedCheckbox.state == .on
         appendToLog("Skip already-ripped discs \(settingsManager.skipRippedDiscs ? "enabled" : "disabled")")
+    }
+
+    @objc internal func keepAwakeToggled() {
+        settingsManager.keepMacAwake = keepAwakeCheckbox.state == .on
+        KeepAwake.shared.setEnabled(settingsManager.keepMacAwake)
+        appendToLog(settingsManager.keepMacAwake
+            ? "This Mac will stay awake and unlocked while Spindle is open, so discs can be swapped "
+              + "without unlocking it."
+            : "This Mac can sleep and lock again. Unlock it before inserting a disc.")
     }
 
     @objc private func showSettings() {

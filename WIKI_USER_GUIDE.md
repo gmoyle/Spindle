@@ -47,7 +47,8 @@ drives in the middle of a read.
   **Browse** picks a disc folder or image instead.
 - **Output**: where rips are written before routing.
 - **Auto-rip inserted discs**, **Auto-eject after ripping**, **Skip discs already
-  ripped**: see [Settings Guide → Main window](DETAILED_SETTINGS_GUIDE.md#main-window).
+  ripped**, **Keep this Mac awake and unlocked**: see
+  [Settings Guide → Main window](DETAILED_SETTINGS_GUIDE.md#main-window).
 - **Settings…**: the Settings window.
 - **Review Rips**: appears when rips are waiting for a Movie or TV decision.
 - **Start Ripping**: rip the current disc now, even if it was ripped before. While
@@ -264,6 +265,13 @@ the files where they belong.
 
 **A movie ends up under Review Rips.** The app couldn't tell from the title lengths
 whether it's a movie or a TV season. Pick one there.
+
+**A disc didn't eject, or a new disc wasn't noticed, while the Mac was locked.**
+macOS doesn't allow discs to be mounted or ejected while the Mac is locked. A disc
+that finishes reading then ejects as soon as you unlock; a disc inserted while
+locked is pushed back out by macOS. To keep feeding discs without unlocking, turn
+on **Keep this Mac awake and unlocked while Spindle is open** in the main window.
+The Mac then stays unlocked, so use it where that's safe.
 
 **A rip stopped when the Mac slept.** Older versions let the Mac sleep mid-rip; v2.1
 prevents idle sleep while a job runs. Closing the lid still sleeps the Mac.

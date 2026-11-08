@@ -22,6 +22,7 @@ These options are on the main window itself, not in Settings.
 | **Auto-rip inserted discs** | On | Start ripping as soon as a disc is detected |
 | **Auto-eject after ripping** | On | Eject when the disc read finishes; encoding continues in the background |
 | **Skip discs already ripped** | On | Skip and eject a disc already ripped with the current settings. Hold **⌥ Option** while inserting to rip it anyway |
+| **Keep this Mac awake and unlocked while Spindle is open** | Off | macOS won't mount or eject discs while the Mac is locked. With this on, the display stays on and the Mac never locks by itself, so you can keep inserting discs without unlocking. Anyone at the Mac can use it meanwhile; locking it yourself still locks it |
 
 A disc is ripped again, even with skipping on, if you deleted the folder its rip was
 recorded in. A folder on a drive or NAS that isn't connected still counts as ripped.
