@@ -196,6 +196,7 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
+        dropTitleChoice(forJob: jobId)
         if extractingJobId == jobId { extractingJobId = nil }
         queueRipInProgress = false
         appendToLog("Rip failed: \(error.localizedDescription)")
@@ -229,6 +230,7 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidCompleteConversion(jobId: UUID, outputFiles: [String]) {
+        noteFinishedJobForTitleChoice(jobId: jobId, outputFiles: outputFiles)
         // A photo disc can bring hundreds of files; list a few.
         let shown = outputFiles.count > 12 ? Array(outputFiles.prefix(5)) : outputFiles
         for file in shown {
@@ -242,6 +244,7 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidFailConversion(jobId: UUID, error: Error) {
+        dropTitleChoice(forJob: jobId)
         appendToLog("Encoding failed: \(error.localizedDescription)")
         showErrorNotification("Encoding failed: \(error.localizedDescription)")
         if extractingJobId == nil { resetRipUI() }

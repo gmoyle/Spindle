@@ -50,6 +50,9 @@ class MainViewController: NSViewController {
     internal var detectedDrives: [OpticalDrive] = []
     /// Discs whose eject macOS refused while the Mac was locked.
     internal let deferredEjects = DeferredEjects()
+    /// Unsure film lookups waiting for the user's pick, and their windows.
+    internal var titleChoices: [TitleChoice] = []
+    internal var titleChooserWindows: [TitleChooserWindowController] = []
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
     internal var resolvedDiscTitle: String? = nil
@@ -734,11 +737,16 @@ extension MainViewController: DriveDetectorDelegate {
                 }
                 return
             }
-            self.lookupDiscTitle(volumeName: drive.name) { title in
+            self.lookupDiscTitle(volumeName: drive.name) { resolution in
+                let title = resolution?.best.displayName
                 self.resolvedDiscTitle = title
                 self.updateDriveDropdown()
-                if let t = title { self.appendToLog("Disc identified: \(t)") }
+                if let t = title {
+                    self.appendToLog(resolution?.isConfident == true ? "Disc identified: \(t)"
+                                     : "Disc might be \(t) (not sure)")
+                }
                 self.autoStartRipping(for: drive)
+                if let resolution = resolution { self.askWhichFilm(for: drive, resolution: resolution) }
             }
         }
     }
