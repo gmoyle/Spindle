@@ -27,3 +27,25 @@ final class DeferredEjectsTests: XCTestCase {
         XCTAssertFalse(ScreenLock.isLocked)
     }
 }
+
+/// An eject only counts once the disc is no longer mounted: drutil exits 0
+/// even when macOS refuses the unmount.
+final class EjectVerificationTests: XCTestCase {
+
+    func testMountPointFromDiskInfo() {
+        XCTAssertTrue(MainViewController.isMounted(diskInfo: ["MountPoint": "/Volumes/OCEANS_ELEVEN_2001"]))
+        XCTAssertFalse(MainViewController.isMounted(diskInfo: ["MountPoint": ""]))
+        XCTAssertFalse(MainViewController.isMounted(diskInfo: ["DeviceIdentifier": "disk13"]))
+        XCTAssertFalse(MainViewController.isMounted(diskInfo: nil))
+    }
+
+    func testMountPointPaths() throws {
+        XCTAssertTrue(MainViewController.discIsMounted("/"))   // a volume's root
+        let folder = NSTemporaryDirectory().appending("not-a-volume-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: folder) }
+        XCTAssertFalse(MainViewController.discIsMounted(folder))
+        XCTAssertFalse(MainViewController.discIsMounted("/Volumes/NO_SUCH_DISC_\(UUID().uuidString)"))
+        XCTAssertFalse(MainViewController.discIsMounted("/dev/disk999"))
+    }
+}

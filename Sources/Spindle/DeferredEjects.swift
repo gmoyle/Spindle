@@ -76,7 +76,8 @@ extension MainViewController {
                 } else if locked {
                     self.deferredEjects.add(DeferredEjects.Disc(devicePath: devicePath, name: name))
                     self.appendToLog("macOS doesn't allow discs to be ejected while your Mac is locked. "
-                                     + "\(name) will eject when you unlock it.")
+                                     + "\(name) will eject when you unlock it. To swap discs without "
+                                     + "unlocking, turn on “Keep this Mac awake and unlocked”.")
                     Logger.shared.log("Eject of \(name) refused while the screen is locked; will retry on unlock",
                                       level: .warning, category: .general)
                 } else {

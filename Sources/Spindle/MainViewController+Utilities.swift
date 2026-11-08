@@ -172,13 +172,48 @@ extension MainViewController {
         // diskutil eject sometimes only unmounts optical media without opening the
         // tray. drutil can force the physical eject, but it addresses drives by
         // index, not device — so only use it when a single drive makes that unambiguous.
-        if ejected, !devicePath.hasPrefix("/dev/") || !FileManager.default.fileExists(atPath: devicePath) {
-            return true
+        if !(ejected && !Self.discIsMounted(devicePath)), opticalDriveCount() == 1 {
+            _ = runEjectTool("/usr/bin/drutil", ["eject"])
         }
-        if opticalDriveCount() == 1, runEjectTool("/usr/bin/drutil", ["eject"]) {
-            return true
+        // The tools' exit codes can't be trusted: drutil exits 0 even when macOS
+        // refuses the unmount (as it does while the Mac is locked). Only a disc
+        // that's no longer mounted counts as ejected.
+        let mounted = Self.discIsMounted(devicePath)
+        if mounted {
+            Logger.shared.log("Eject of \(devicePath) didn't take: the disc is still mounted",
+                              level: .warning, category: .general)
         }
-        return ejected
+        return !mounted
+    }
+
+    /// Whether the disc at `device` (a /dev node, or a mount point when the node
+    /// wasn't known) still has a mounted volume.
+    static func discIsMounted(_ device: String, fileManager: FileManager = .default) -> Bool {
+        guard device.hasPrefix("/dev/") else {
+            // A mount point: mounted while it's still its own volume's root.
+            let url = URL(fileURLWithPath: device)
+            guard fileManager.fileExists(atPath: device),
+                  let volume = (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume else { return false }
+            return volume.standardizedFileURL.path == url.standardizedFileURL.path
+        }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        task.arguments = ["info", "-plist", device]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return false }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        guard task.terminationStatus == 0 else { return false }   // the disc is gone
+        let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        return isMounted(diskInfo: info)
+    }
+
+    /// From `diskutil info -plist`: a non-empty MountPoint means mounted.
+    static func isMounted(diskInfo: [String: Any]?) -> Bool {
+        guard let mountPoint = diskInfo?["MountPoint"] as? String else { return false }
+        return !mountPoint.isEmpty
     }
 
     /// True if diskutil reports `device` (a /dev node or mount point) as
@@ -293,6 +328,9 @@ extension MainViewController {
         autoRipCheckbox.state = settingsManager.autoRipEnabled ? .on : .off
         autoEjectCheckbox.state = settingsManager.autoEjectEnabled ? .on : .off
         skipRippedCheckbox.state = settingsManager.skipRippedDiscs ? .on : .off
+        keepAwakeCheckbox.state = settingsManager.keepMacAwake ? .on : .off
+        // Tests never hold power assertions.
+        if !testingUtils.isRunningInTestEnvironment { KeepAwake.shared.setEnabled(settingsManager.keepMacAwake) }
     }
 
     func saveCurrentSettings() {

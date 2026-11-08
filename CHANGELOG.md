@@ -41,7 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Library folders per kind**: Settings → Output & Routing has Music, Photos, Home Videos and Imported Discs folders. Unless you change them, they sit next to your Movies folder (e.g. `/Volumes/Media/Music`). Photos stays unset, so the first photo disc can ask where photos go.
 - **Metadata providers**: movie lookup (OMDb) sits behind a provider interface that TMDB and MusicBrainz will plug into.
 
+### 🔓 Ripping discs one after another
+- **Keep this Mac awake and unlocked while Spindle is open**: a new main-window option (off by default). macOS won't mount or eject discs while the Mac is locked, so with this on the display stays on and the Mac doesn't lock by itself, and you can keep inserting discs without unlocking. Locking it yourself still locks it.
+
 ### 🐛 Fixed
+- A disc that finished reading while the Mac was locked stayed in the drive: macOS refused the eject, and Spindle didn't try again. It now ejects as soon as you unlock. **Start Ripping** no longer picks a disc that has already left the drive.
 - HD DVDs were recognized when inserted but the rip didn't detect them, so it failed as "unsupported media type".
 - Running the test suite with a disc in the drive could eject it, or start a real MakeMKV rip of it from the test process, competing with the app's own rip. Tests no longer see real drives or run MakeMKV.
 - With one optical drive connected, a MakeMKV rip of a folder or disc image on another disk ripped whatever disc was in the drive instead.
