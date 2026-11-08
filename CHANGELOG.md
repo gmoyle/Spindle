@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔓 Ripping discs one after another
 - **Keep this Mac awake and unlocked while Spindle is open**: a new main-window option (off by default). macOS won't mount or eject discs while the Mac is locked, so with this on the display stays on and the Mac doesn't lock by itself, and you can keep inserting discs without unlocking. Locking it yourself still locks it.
 
+### 🎬 Film titles
+- **Labels without apostrophes are found**: `OCEANS_ELEVEN_2001` is also searched as "Ocean's Eleven", and `MATRIX_THE` as "The Matrix". Titles are compared without punctuation.
+- **The year on a label picks the film**: `OCEANS_ELEVEN_2001` is the 2001 film, not the 1960 original.
+- **Which film is this?** When a lookup isn't sure, the disc rips under the best guess and a window lists the matches, with posters. Your pick renames the rip's folder and files, now or when the rip finishes. Nothing waits for an answer.
+
 ### 🐛 Fixed
 - A disc that finished reading while the Mac was locked stayed in the drive: macOS refused the eject, and Spindle didn't try again. It now ejects as soon as you unlock. **Start Ripping** no longer picks a disc that has already left the drive.
 - HD DVDs were recognized when inserted but the rip didn't detect them, so it failed as "unsupported media type".

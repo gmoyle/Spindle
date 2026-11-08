@@ -155,7 +155,8 @@ struct TMDBProvider: TVMetadataProvider, MovieMetadataProvider {
     static func parseMovieSearch(_ data: Data) -> [MovieMatch] {
         results(in: data).compactMap { result in
             guard let title = result["title"] as? String else { return nil }
-            return MovieMatch(title: title, year: year(result["release_date"]))
+            let poster = (result["poster_path"] as? String).flatMap { URL(string: "https://image.tmdb.org/t/p/w185\($0)") }
+            return MovieMatch(title: title, year: year(result["release_date"]), posterURL: poster)
         }
     }
 

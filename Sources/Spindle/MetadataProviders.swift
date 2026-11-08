@@ -5,6 +5,8 @@ struct MovieMatch: Equatable {
     let title: String
     /// As the provider gives it: "1985", or a range like "2008–2013".
     let year: String?
+    /// Poster image, for the "Which film is this?" chooser.
+    var posterURL: URL?
 
     /// Plex-style "Title (Year)".
     var displayName: String {
@@ -39,8 +41,10 @@ enum DiscTitleQuery {
         "unrated", "theatrical", "special", "edition", "collectors", "anamorphic"
     ]
 
-    /// Search terms to try in order: the label without junk tokens and numbers,
-    /// then the whole label if that differs.
+    /// Search terms to try in order: the label without junk tokens and numbers;
+    /// then spellings a label can't hold (labels have no apostrophes, and some
+    /// put "THE" last): "OCEANS ELEVEN" → "OCEAN'S ELEVEN", "MATRIX THE" → "THE
+    /// MATRIX"; then the whole label if that differs.
     static func candidates(fromVolumeName volumeName: String) -> [String] {
         let words = volumeName
             .replacingOccurrences(of: "_", with: " ")
@@ -51,15 +55,93 @@ enum DiscTitleQuery {
         let cleaned = cleanedWords.joined(separator: " ").trimmingCharacters(in: .whitespaces)
 
         var candidates: [String] = []
-        if !cleaned.isEmpty { candidates.append(cleaned) }
-        if !raw.isEmpty, raw.caseInsensitiveCompare(cleaned) != .orderedSame { candidates.append(raw) }
+        func add(_ candidate: String) {
+            guard !candidate.isEmpty,
+                  !candidates.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame }) else { return }
+            candidates.append(candidate)
+        }
+        add(cleaned)
+        for variant in spellingVariants(of: cleanedWords) { add(variant) }
+        add(raw)
         return candidates
     }
 
-    /// An exact (case-insensitive) title match beats the provider's first hit,
-    /// which is often an older film with a similar name.
-    static func bestMatch(for query: String, in matches: [MovieMatch]) -> MovieMatch? {
-        matches.first { $0.title.caseInsensitiveCompare(query) == .orderedSame } ?? matches.first
+    /// At most a few, so a long label doesn't send a dozen lookups.
+    static let maxSpellingVariants = 3
+
+    private static func spellingVariants(of words: [String]) -> [String] {
+        var variants: [String] = []
+        var words = words
+        // "MATRIX THE" → "THE MATRIX"
+        if words.count >= 2, words.last?.lowercased() == "the" {
+            words = ["THE"] + words.dropLast()
+            variants.append(words.joined(separator: " "))
+        }
+        // "OCEANS" → "OCEAN'S", one word at a time. Not the last word: a title
+        // rarely ends in a possessive, and "GOONIES" is just a plural.
+        for (index, word) in words.enumerated().dropLast() where variants.count < maxSpellingVariants {
+            let lower = word.lowercased()
+            guard lower.count >= 4, lower.hasSuffix("s"), !lower.hasSuffix("ss"), !lower.hasSuffix("us"),
+                  !word.contains("'") else { continue }
+            var possessive = words
+            possessive[index] = String(word.dropLast()) + (word.last == "S" ? "'S" : "'s")
+            variants.append(possessive.joined(separator: " "))
+        }
+        return variants
+    }
+
+    /// The release year a label carries ("OCEANS_ELEVEN_2001" → "2001").
+    static func year(inVolumeName volumeName: String) -> String? {
+        let thisYear = Calendar.current.component(.year, from: Date())
+        return volumeName.replacingOccurrences(of: "_", with: " ").split(separator: " ")
+            .compactMap { Int($0) }.last { (1920...thisYear + 1).contains($0) }.map(String.init)
+    }
+
+    /// The match to use. A title equal to the query (ignoring case and
+    /// punctuation, so "Ocean's Eleven" equals "OCEANS ELEVEN") beats the
+    /// provider's first hit, which is often an older film with a similar name;
+    /// with the label's year, a match from that year beats a remake or original.
+    static func bestMatch(for query: String, in matches: [MovieMatch], year: String? = nil) -> MovieMatch? {
+        let wanted = normalized(query)
+        let sameTitle = matches.filter { normalized($0.title) == wanted }
+        let fromYear: (MovieMatch) -> Bool = { match in
+            guard let year = year, let matchYear = match.year else { return false }
+            return matchYear.hasPrefix(year)
+        }
+        return sameTitle.first(where: fromYear) ?? sameTitle.first ?? matches.first(where: fromYear) ?? matches.first
+    }
+
+    /// A lookup's answer and how sure it is.
+    struct Resolution: Equatable {
+        /// What the disc is named after unless the user picks another.
+        let best: MovieMatch
+        /// Up to `maxChoices` matches to offer, `best` first.
+        let choices: [MovieMatch]
+        /// True when exactly one film has the label's title (and year, when the
+        /// label has one). Otherwise the user is asked to pick.
+        let isConfident: Bool
+    }
+
+    static let maxChoices = 8
+
+    static func resolve(query: String, matches: [MovieMatch], year: String? = nil) -> Resolution? {
+        guard let best = bestMatch(for: query, in: matches, year: year) else { return nil }
+        let wanted = normalized(query)
+        let sameTitle = matches.filter { normalized($0.title) == wanted }
+        let fromYear = sameTitle.filter { match in year.map { match.year?.hasPrefix($0) ?? false } ?? true }
+        let confident = year == nil ? sameTitle.count == 1 : fromYear.count == 1
+        var choices = [best]
+        for match in matches where choices.count < maxChoices && !choices.contains(match) { choices.append(match) }
+        return Resolution(best: best, choices: choices, isConfident: confident)
+    }
+
+    /// Lowercased, apostrophes dropped, "&" as "and", other punctuation as spaces.
+    static func normalized(_ title: String) -> String {
+        let lowered = title.lowercased()
+            .replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\u{2019}", with: "")
+            .replacingOccurrences(of: "&", with: " and ")
+        return lowered.map { $0.isLetter || $0.isNumber ? String($0) : " " }.joined()
+            .split(separator: " ").joined(separator: " ")
     }
 }
 
@@ -88,7 +170,8 @@ struct OMDbProvider: MovieMetadataProvider {
               let results = json["Search"] as? [[String: Any]] else { return [] }
         return results.compactMap { result in
             guard let title = result["Title"] as? String else { return nil }
-            return MovieMatch(title: title, year: result["Year"] as? String)
+            let poster = (result["Poster"] as? String).flatMap { $0.hasPrefix("http") ? URL(string: $0) : nil }
+            return MovieMatch(title: title, year: result["Year"] as? String, posterURL: poster)
         }
     }
 }

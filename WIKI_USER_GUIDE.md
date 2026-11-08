@@ -73,7 +73,20 @@ already ripped** on, a known disc is ejected without ripping, unless:
 
 ## Plex libraries and routing
 
-Rips are named `Movie (Year)/Movie (Year).mkv`. With **Sort rips into Movies / TV
+Rips are named `Movie (Year)/Movie (Year).mkv`, from a lookup on the disc's label.
+Labels can't hold apostrophes, so `OCEANS_ELEVEN_2001` is also searched as "Ocean's
+Eleven", and a year on the label picks between a film and its remake.
+
+**Which film is this?** When the lookup isn't sure (nothing has the label's exact
+title, or two films share it and the label has no year), the disc starts ripping
+anyway under the best guess, and a window lists the matches with their posters,
+plus the disc's own name. Pick one and the rip's folder and files are renamed:
+straight away if the rip has finished, or when it does. Ignore the window and the
+best guess stays. TV season discs aren't asked; their episodes are named from the
+series instead.
+
+With **Sort rips into Movies / TV
+Shows folders** on With **Sort rips into Movies / TV
 Shows folders** on (Settings → Output & Routing), each finished rip is classified
 by its title lengths:
 
