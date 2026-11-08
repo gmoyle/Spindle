@@ -13,10 +13,11 @@ the [Installation Guide](INSTALLATION.md).
 4. [Plex libraries and routing](#plex-libraries-and-routing)
 5. [DVDs](#dvds)
 6. [Blu-ray and MakeMKV](#blu-ray-and-makemkv)
-7. [Music CDs](#music-cds)
-8. [Encoding](#encoding)
-9. [Scripts](#scripts)
-10. [Troubleshooting](#troubleshooting)
+7. [TV series](#tv-series)
+8. [Music CDs](#music-cds)
+9. [Encoding](#encoding)
+10. [Scripts](#scripts)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -75,7 +76,8 @@ Shows folders** on (Settings → Output & Routing), each finished rip is classif
 by its title lengths:
 
 - one long feature → **movie**, moved to the Movies folder;
-- several titles of similar length → **TV season**, moved to the TV Shows folder;
+- several titles of similar length → **TV season**, with each episode named and
+  filed in the TV Shows folder (see [TV series](#tv-series));
 - unclear → waits under **Review Rips**, pre-set to the app's guess, for you to
   confirm or switch. **Accept All Guesses** routes everything waiting.
 
@@ -121,6 +123,36 @@ dialog:
 
 MakeMKV needs the drive to itself. Close MakeMKV's own window and DVD Player before
 inserting a Blu-ray.
+
+## TV series
+
+A disc with several titles of about the same length is a TV season disc. Spindle:
+
+1. **Picks the episodes**: every title of episode length, including a double-length
+   pilot. The "play all" title (all the episodes joined) is skipped; extras such as
+   featurettes are ripped only with bonus features on.
+2. **Finds the show** from the disc label: `THE_OFFICE_S2_D3`, `SEINFELD_SEASON_3_DISC_1`
+   and `FIREFLY_D1` all work. It looks the show up on [TMDB](https://www.themoviedb.org)
+   if you've added a TMDB key, otherwise on OMDb.
+3. **Numbers the episodes** in disc order. Disc 1 starts at episode 1; disc 2 starts
+   after the last episode of disc 1, because Spindle remembers each show's discs.
+4. **Files them** in the TV Shows folder as
+   `Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`. Extras go in
+   `Show (Year)/Featurettes/`.
+
+When Spindle isn't sure, nothing is renamed and the rip waits under **Review Rips**.
+Hover over the disc name there to see why: the show wasn't found, disc 2 was
+inserted before disc 1, or the label doesn't say which season of a multi-season
+show it is. Choosing **TV Show** files the episodes with Spindle's best guess (season
+1, continuing after the last disc it knows); choosing **Movie** moves the folder
+unchanged.
+
+**Add a TMDB key** for the best results: create a free account at themoviedb.org,
+open Settings → API, and paste the API key (or the read access token) into
+**TMDB API Key** in Settings → Output & Routing. TMDB lists episodes in the order the
+discs use. OMDb, used without a key, lists them in broadcast order, which differs
+for some shows (Firefly's DVDs start with "Serenity"; OMDb starts with "The Train
+Job").
 
 ## Music CDs
 
@@ -182,6 +214,10 @@ MakeMKV dialog.
 
 **A Blu-ray fails with "Failed to open disc".** Something else is using the drive.
 Close other disc apps and reinsert the disc.
+
+**A TV disc ends up under Review Rips.** Hover over its name for the reason. Most
+often disc 2 was inserted before disc 1 of that season, or the disc label doesn't
+name the season. Choose TV Show to file it with a best guess.
 
 **A movie ends up under Review Rips.** The app couldn't tell from the title lengths
 whether it's a movie or a TV season. Pick one there.

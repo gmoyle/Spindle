@@ -36,6 +36,7 @@ recorded in. A folder on a drive or NAS that isn't connected still counts as rip
 | **Auto-route confident guesses** | On | Move confident guesses straight away. Unsure rips wait under **Review Rips** in the main window, where you choose Movie or TV for each |
 | **Movies Folder** | `~/Plex/Movies` | Library folder for movies |
 | **TV Shows Folder** | `~/Plex/TVShows` | Library folder for TV seasons |
+| **TMDB API Key** | Empty | Your own free key from themoviedb.org. Used to name TV episodes (in disc order) and to look up movies; without it, OMDb is used |
 | **Music Folder** | Next to the Movies folder (`…/Music`) | Where music CDs are ripped to, as `Artist/Album (Year)/` |
 | **Photos Folder** | Not set | For photo discs (coming); asked the first time one is inserted |
 | **Home Videos Folder** | Next to the Movies folder | For camcorder and home-made DVDs (coming) |
@@ -61,8 +62,9 @@ put there (posters, subtitles) are left alone.
 Custom templates (defaults `Movies/{title} ({year})` and `TV Shows/{series}`) support
 `{title}` and `{year}`. A path segment that uses any other token is dropped.
 
-Titles come from an OMDb lookup on the disc's name, giving Plex-style
-`Movie (Year)/Movie (Year).mkv` names.
+Titles come from a lookup on the disc's name (TMDB if you've added a key, otherwise
+OMDb), giving Plex-style `Movie (Year)/Movie (Year).mkv` names. TV seasons are named
+per episode as `Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`.
 
 ## Encoding tab
 

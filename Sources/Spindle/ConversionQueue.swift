@@ -814,7 +814,8 @@ class ConversionQueue {
         if encodeError == nil, !outputFiles.isEmpty, let route = ripper.routeAfterEncodes {
             let status = ContentRouter.handleCompletedRip(
                 folderPath: route.folderPath, discName: route.discName,
-                discIdentity: route.discIdentity, titleDurationsSeconds: route.titleDurationsSeconds)
+                discIdentity: route.discIdentity, titleDurationsSeconds: route.titleDurationsSeconds,
+                rippedTitles: route.rippedTitles)
             ripper.delegate?.mediaRipperDidUpdateStatus(status)
             Logger.shared.logQueue(status, level: .info)
             outputFiles = Self.resolveRoutedPaths(outputFiles)
@@ -879,6 +880,11 @@ class ConversionQueue {
 
     /// Map files to the folder content routing moved them to (if it did).
     static func resolveRoutedPaths(_ files: [String]) -> [String] {
+        // Files a filer renamed one by one (TV episodes).
+        let moved = files.map { ContentRouter.finalFileLocation(for: $0) }
+        if moved.contains(where: { $0 != nil }) {
+            return zip(files, moved).map { $1 ?? $0 }
+        }
         guard let first = files.first else { return files }
         let stagingDir = (first as NSString).deletingLastPathComponent
         guard let finalDir = ContentRouter.finalLocation(forStagingPath: stagingDir) else { return files }

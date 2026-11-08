@@ -35,8 +35,20 @@ extension MediaRipper {
             discName: (dvdPath as NSString).lastPathComponent,
             discIdentity: DiscIdentity.compute(forDiscAt: dvdPath),
             titleDurationsSeconds: titles.map { Int($0.duration) })
-        let titlesToRip = filterTitlesToRip(titles: titles, selectedTitles: configuration.selectedTitles,
+        // A TV season disc: rip every episode (not just the longest title),
+        // skip "play all", and keep extras only with bonus features on.
+        let tvSelection = configuration.selectedTitles.isEmpty ? Self.tvEpisodeSelection(for: titles) : nil
+        let titlesToRip: [DVDTitle]
+        if let tv = tvSelection {
+            let chosen = (tv.episodes + (configuration.ripBonusFeatures ? tv.extras : [])).sorted()
+            titlesToRip = chosen.map { titles[$0] }
+            Logger.shared.log("TV disc: episodes are titles \(tv.episodes.map { titles[$0].number }), "
+                              + "play-all \(tv.playAll.map { titles[$0].number }), "
+                              + "extras \(tv.extras.map { titles[$0].number })", level: .info, category: .dvdRipping)
+        } else {
+            titlesToRip = filterTitlesToRip(titles: titles, selectedTitles: configuration.selectedTitles,
                                             ripBonusFeatures: configuration.ripBonusFeatures)
+        }
         delegate?.mediaRipperDidUpdateStatus("Titles to rip: \(titlesToRip.map({ $0.number }))")
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: titlesToRip.count)
 
@@ -54,7 +66,15 @@ extension MediaRipper {
 
         let plans = titlesToRip.enumerated().map { index, title in
             planDVDTitle(title, index: index, totalTitles: titlesToRip.count,
-                         configuration: configuration, outputDirectory: organizedOutputDirectory)
+                         configuration: configuration, outputDirectory: organizedOutputDirectory,
+                         isTVEpisode: tvSelection != nil)
+        }
+        if let tv = tvSelection {
+            let episodeNumbers = Set(tv.episodes.map { titles[$0].number })
+            routeAfterEncodes?.rippedTitles = plans.map {
+                RippedTitle(path: $0.outputPath, durationSeconds: $0.title.duration,
+                            isEpisode: episodeNumbers.contains($0.title.number))
+            }
         }
 
         // MakeMKV first: it follows the disc's navigation (seamless branching,
@@ -502,6 +522,20 @@ extension MediaRipper {
             }
         }
         return nil
+    }
+
+    /// The episodes of a TV season DVD, or nil if it doesn't look like one.
+    /// Titles that play the same cells as an earlier title are duplicates
+    /// (another angle or menu entry for the same episode) and are ignored.
+    static func tvEpisodeSelection(for titles: [DVDTitle]) -> TVEpisodeSelection? {
+        var seen = Set<String>()
+        let durations: [Double] = titles.map { title in
+            guard !title.cellRanges.isEmpty else { return title.duration }
+            let key = "\(title.vtsNumber):" + title.cellRanges.map { "\($0.lowerBound)-\($0.upperBound)" }
+                .joined(separator: ",")
+            return seen.insert(key).inserted ? title.duration : 0
+        }
+        return TVEpisodeSelection.select(durationsSeconds: durations)
     }
 
     func filterTitlesToRip(titles: [DVDTitle], selectedTitles: [Int],

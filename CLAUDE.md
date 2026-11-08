@@ -2,8 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Spindle: a native macOS (13+) disc-to-library importer (today DVD / Blu-ray / HD DVD; music CDs,
-TV episodes and photo discs are planned in `ROADMAP.md`), written in Swift with programmatic AppKit
+Spindle: a native macOS (13+) disc-to-library importer (DVD / Blu-ray / HD DVD movies and TV
+seasons, music CDs; photo discs and other sources are planned in `ROADMAP.md`), written in Swift with programmatic AppKit
 (no SwiftUI, no storyboards). Built with SwiftPM. `AGENTS.md` is an older version of this file;
 where they differ, this file is current.
 
@@ -109,6 +109,16 @@ swiftlint lint
    queues it in `PendingRoutingQueue` for `RoutingReviewWindowController`.
    `ContentRouter.recentMoves` maps a staging path to its routed path, so a later registry
    write records the final location.
+7. **TV seasons**: before ripping, `TVEpisodeSelection.select` (title durations) picks the
+   episodes and drops "play all"; DVD rips those titles (`tvEpisodeSelection(for:)` also drops
+   titles with identical cells), Blu-ray rips each as its own MakeMKV title (`titleSpec`).
+   The ripper passes `RippedTitle`s (path, duration, isEpisode) to `handleCompletedRip`, which
+   hands a TV guess to `TVLibraryFiler`: `TVDiscLabel` parses show/season/disc from the label,
+   `MetadataProviders.tv` (TMDB with the user's `tmdbAPIKey`, else OMDb) finds the series and
+   season, `TVEpisodePlanner` picks the first episode from `TVSeriesMemory`
+   (`Application Support/Spindle/tv-series.json`), and files move one by one
+   (`ContentRouter.recordFileMove`). `.unsure(reason)` queues the rip for review with its
+   titles and the reason; choosing TV there files with `strict: false`.
 
 ### Invariants: don't break these
 

@@ -35,6 +35,7 @@ class DetailedSettingsWindowController: NSWindowController {
     private var extraLibraryFields: [LibraryKind: NSTextField] = [:]
     private static let extraLibraries: [LibraryKind] = [.music, .photos, .homeVideos, .importedDiscs]
     private var tvShowsRootField: NSTextField!
+    private var tmdbKeyField: NSTextField!
 
     // Quality & Codec Section
     private var qualityBox: NSBox!
@@ -356,12 +357,24 @@ class DetailedSettingsWindowController: NSWindowController {
                 createLabelControlButtonRow(label: label, control: field, button: browse))
         }
 
+        // TMDB names TV episodes (with runtimes) and movies; OMDb is the fallback.
+        let tmdbLabel = NSTextField(labelWithString: "TMDB API Key:")
+        tmdbKeyField = NSTextField()
+        tmdbKeyField.placeholderString = "Optional: names TV episodes better (themoviedb.org)"
+        let tmdbLink = NSButton(title: "Get a Key...", target: self, action: #selector(openTMDBKeyPage))
+        sectionStackView.addArrangedSubview(
+            createLabelControlButtonRow(label: tmdbLabel, control: tmdbKeyField, button: tmdbLink))
+
         NSLayoutConstraint.activate([
             sectionStackView.topAnchor.constraint(equalTo: outputDirectoryBox.topAnchor, constant: 25),
             sectionStackView.leadingAnchor.constraint(equalTo: outputDirectoryBox.leadingAnchor, constant: 10),
             sectionStackView.trailingAnchor.constraint(equalTo: outputDirectoryBox.trailingAnchor, constant: -10),
             sectionStackView.bottomAnchor.constraint(equalTo: outputDirectoryBox.bottomAnchor, constant: -10)
         ])
+    }
+
+    @objc private func openTMDBKeyPage() {
+        if let url = URL(string: "https://www.themoviedb.org/settings/api") { NSWorkspace.shared.open(url) }
     }
 
     @objc private func browseForMoviesRoot() {
@@ -679,6 +692,7 @@ class DetailedSettingsWindowController: NSWindowController {
         autoRouteCheckbox.state = settingsManager.autoRouteHighConfidence ? .on : .off
         moviesRootField.stringValue = settingsManager.moviesRootDirectory
         tvShowsRootField.stringValue = settingsManager.tvShowsRootDirectory
+        tmdbKeyField?.stringValue = settingsManager.tmdbAPIKey
         for (kind, field) in extraLibraryFields {
             // Photos stays empty until chosen, so the first photo disc can ask.
             field.stringValue = kind == .photos && !settingsManager.hasChosenLibraryRoot(.photos)
@@ -813,6 +827,7 @@ class DetailedSettingsWindowController: NSWindowController {
             settingsManager.tvShowsRootDirectory =
                 NSString(string: tvShowsRootField.stringValue).expandingTildeInPath
         }
+        if let field = tmdbKeyField { settingsManager.tmdbAPIKey = field.stringValue }
         // Save only a changed folder: saving the shown default would pin it, and
         // Photos would never ask.
         for (kind, field) in extraLibraryFields {

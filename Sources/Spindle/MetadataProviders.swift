@@ -13,7 +13,7 @@ struct MovieMatch: Equatable {
     }
 }
 
-/// Looks up movies by title. OMDb today; TMDB (movies and TV) is planned.
+/// Looks up movies by title (TMDB when a key is set, else OMDb).
 protocol MovieMetadataProvider {
     var name: String { get }
     /// Calls back on an arbitrary queue with the provider's matches, best first.
@@ -24,7 +24,7 @@ protocol MovieMetadataProvider {
 /// The providers the app uses. Kept in one place so a provider can be swapped
 /// (or faked in tests) without touching the callers.
 enum MetadataProviders {
-    static var movies: MovieMetadataProvider = OMDbProvider()
+    static var movies: MovieMetadataProvider = PreferredMovieProvider()
 }
 
 /// Turning a disc's volume label into search terms, and picking a result.

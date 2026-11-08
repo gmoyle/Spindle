@@ -21,10 +21,14 @@ struct PendingRouting: Codable, Equatable, Identifiable {
     let confidence: Double
     /// When the rip completed.
     let createdAt: Date
+    /// The rip's titles in disc order, so choosing TV Show can name episodes.
+    let rippedTitles: [RippedTitle]?
+    /// Why the rip wasn't filed automatically, if there's more to say than the guess.
+    let note: String?
 
     init(id: UUID = UUID(), discName: String, discIdentity: String? = nil,
          folderPath: String, guessedType: ContentType, confidence: Double,
-         createdAt: Date = Date()) {
+         createdAt: Date = Date(), rippedTitles: [RippedTitle]? = nil, note: String? = nil) {
         self.id = id
         self.discName = discName
         self.discIdentity = discIdentity
@@ -32,6 +36,8 @@ struct PendingRouting: Codable, Equatable, Identifiable {
         self.guessedType = guessedType
         self.confidence = confidence
         self.createdAt = createdAt
+        self.rippedTitles = rippedTitles
+        self.note = note
     }
 }
 
