@@ -135,21 +135,19 @@ final class SettingsManagerSeedingTests: XCTestCase {
     // is a getter-computed fallback (like videoCodec/audioCodec/quality), not a
     // key written by setDefaultsIfNeeded(). It's covered by testGetterDefaults().
     private let seededDefaults: [(key: String, expected: PreferenceValue)] = [
+        // The series/season-folder, bonus-content, file-naming and retry settings
+        // were removed with their unused controls (SETTINGS_AUDIT.md), so they're
+        // no longer seeded. TV episodes go in Season folders made by TVLibraryFiler,
+        // which is why the TV format stops at the series.
         ("outputStructureType", .int(1)),
-        ("createSeriesDirectory", .bool(true)),
-        ("createSeasonDirectory", .bool(true)),
         ("movieDirectoryFormat", .string("Movies/{title} ({year})")),
-        ("tvShowDirectoryFormat", .string("TV Shows/{series}/Season {season}")),
-        ("bonusContentStructure", .int(1)),
-        ("bonusContentDirectory", .string("Bonus")),
-        ("includeYearInFilename", .bool(true)),
+        ("tvShowDirectoryFormat", .string("TV Shows/{series}")),
         ("autoDeinterlace", .bool(true)),
         ("useMakeMKVForBluRay", .bool(true)),
         ("includeSubtitles", .bool(true)),
         ("includeChapters", .bool(true)),
         ("intelligentTitleSelection", .bool(true)),
-        ("autoRetryOnFailure", .bool(true)),
-        ("maxRetryAttempts", .int(3)),
+        ("skipRippedDiscs", .bool(true)),
     ]
 
     /// Every key the seeding or these tests could write; snapshotted for restore.
