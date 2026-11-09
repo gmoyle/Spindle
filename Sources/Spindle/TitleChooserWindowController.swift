@@ -1,31 +1,43 @@
 import AppKit
 
-/// "Which film is this?" — shown when a disc's title lookup wasn't sure. It
-/// never blocks: the disc is already ripping under the best guess, and the
-/// pick renames the rip (now, or when it finishes).
+/// "Which film is this?": shown when a disc's title lookup wasn't sure, or its
+/// label doesn't name the film at all ("DVD_VIDEO"). It never blocks: the disc
+/// is already ripping under a guess, and the answer renames the rip (now, or
+/// when it finishes). The user can pick a match, search for another, or type
+/// the name to use.
 final class TitleChooserWindowController: NSWindowController {
 
     /// Called with the chosen name, or nil to keep the guess.
     var onChoose: ((String?) -> Void)?
+    /// Searches for films; replaceable in tests.
+    var provider: MovieMetadataProvider = MetadataProviders.movies
 
     private let choice: TitleChoice
-    private let discOwnName: String
+    private let discOwnName: String?
+    private let listStack = NSStackView()
+    let searchField = NSSearchField()
+    private let statusLabel = NSTextField(labelWithString: "")
     private var radios: [NSButton] = []
     private var names: [String] = []
 
-    init(choice: TitleChoice, discOwnName: String) {
+    /// - Parameter discOwnName: the label as a film name, offered as a choice
+    ///   (nil for a generic label, which isn't worth offering).
+    init(choice: TitleChoice, discOwnName: String?) {
         self.choice = choice
         self.discOwnName = discOwnName
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 200),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Which film is this?"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         buildContent()
+        showMatches(choice.choices)
         window.center()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    // MARK: - Layout
 
     private func buildContent() {
         guard let window = window else { return }
@@ -36,21 +48,34 @@ final class TitleChooserWindowController: NSWindowController {
         stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let intro = NSTextField(wrappingLabelWithString:
-            "Spindle isn't sure which film \(choice.discName) is. It's ripping it as "
-            + "\(choice.guessedName). Pick the right one and the files are renamed when the rip finishes.")
-        intro.preferredMaxLayoutWidth = 420
+        let intro = NSTextField(wrappingLabelWithString: introText)
+        intro.preferredMaxLayoutWidth = 440
         stack.addArrangedSubview(intro)
 
-        for match in choice.resolution.choices {
-            stack.addArrangedSubview(row(title: match.displayName, poster: match.posterURL))
-        }
-        stack.addArrangedSubview(row(title: discOwnName, poster: nil, label: "Keep the disc's name: \(discOwnName)"))
-        radios.first?.state = .on
+        // Search: type a title and press Return (or Search) for matches;
+        // "Use Typed Name" names the rip exactly as typed.
+        searchField.placeholderString = "Film title, e.g. Something's Gotta Give 2003"
+        searchField.sendsWholeSearchString = true
+        searchField.target = self
+        searchField.action = #selector(search)
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+        searchField.widthAnchor.constraint(equalToConstant: 250).isActive = true
+        let searchButton = NSButton(title: "Search", target: self, action: #selector(search))
+        let typedButton = NSButton(title: "Use Typed Name", target: self, action: #selector(useTypedName))
+        stack.addArrangedSubview(NSStackView(views: [searchField, searchButton, typedButton]))
+
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.isHidden = true
+        stack.addArrangedSubview(statusLabel)
+
+        listStack.orientation = .vertical
+        listStack.alignment = .leading
+        listStack.spacing = 8
+        stack.addArrangedSubview(listStack)
 
         let keep = NSButton(title: "Keep \(choice.guessedName)", target: self, action: #selector(keepGuess))
+        // No default button: Return in the search box searches.
         let use = NSButton(title: "Use This Film", target: self, action: #selector(useSelection))
-        use.keyEquivalent = "\r"
         let buttons = NSStackView(views: [keep, use])
         buttons.spacing = 8
         stack.addArrangedSubview(buttons)
@@ -62,10 +87,41 @@ final class TitleChooserWindowController: NSWindowController {
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            content.widthAnchor.constraint(equalToConstant: 460)
+            content.widthAnchor.constraint(equalToConstant: 480)
         ])
         window.contentView = content
-        window.setContentSize(content.fittingSize)
+        if choice.labelIsGeneric { window.initialFirstResponder = searchField }
+    }
+
+    private var introText: String {
+        if choice.labelIsGeneric {
+            return "The disc's label (\(choice.discName)) doesn't say which film it is, so Spindle is ripping "
+                + "it as \(choice.guessedName). Search for the film, or type its name, and the files are "
+                + "renamed when the rip finishes."
+        }
+        return "Spindle isn't sure which film \(choice.discName) is. It's ripping it as \(choice.guessedName). "
+            + "Pick the right one, or search for it, and the files are renamed when the rip finishes."
+    }
+
+    /// Replace the list with these matches (plus the disc's own name).
+    private func showMatches(_ matches: [MovieMatch]) {
+        for view in listStack.arrangedSubviews {
+            listStack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+        radios.removeAll()
+        names.removeAll()
+        for match in matches.prefix(DiscTitleQuery.maxChoices) {
+            listStack.addArrangedSubview(row(title: match.displayName, poster: match.posterURL))
+        }
+        if let own = discOwnName, !names.contains(own) {
+            listStack.addArrangedSubview(row(title: own, poster: nil, label: "Keep the disc's name: \(own)"))
+        }
+        radios.first?.state = .on
+        if let window = window, let content = window.contentView {
+            content.layoutSubtreeIfNeeded()
+            window.setContentSize(content.fittingSize)
+        }
     }
 
     private func row(title: String, poster: URL?, label: String? = nil) -> NSView {
@@ -87,12 +143,52 @@ final class TitleChooserWindowController: NSWindowController {
         return row
     }
 
+    // MARK: - Actions
+
+    /// The names on offer, in order (for tests).
+    var offeredNames: [String] { names }
+
+    @objc func search() {
+        let text = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let year = DiscTitleQuery.year(inVolumeName: text)
+        let query = year.map { year in
+            text.replacingOccurrences(of: year, with: "").trimmingCharacters(in: .whitespaces)
+        } ?? text
+        showStatus("Searching for “\(text)”…")
+        provider.searchMovies(query: query.isEmpty ? text : query) { [weak self] matches in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let ordered = DiscTitleQuery.resolve(query: query, matches: matches, year: year)?.choices ?? []
+                self.showStatus(ordered.isEmpty
+                    ? "Nothing found for “\(text)”. Check the spelling, or use the typed name." : nil)
+                self.showMatches(ordered)
+            }
+        }
+    }
+
+    @objc func useTypedName() {
+        guard let name = TitleChoice.typedName(searchField.stringValue) else {
+            showStatus("Type the film's name first, e.g. Something's Gotta Give 2003.")
+            return
+        }
+        finish(name)
+    }
+
+    private func showStatus(_ text: String?) {
+        statusLabel.stringValue = text ?? ""
+        statusLabel.isHidden = text == nil
+    }
+
     @objc private func radioChanged(_ sender: NSButton) {
         for radio in radios { radio.state = radio === sender ? .on : .off }
     }
 
     @objc private func useSelection() {
-        let index = radios.firstIndex { $0.state == .on } ?? 0
+        guard let index = radios.firstIndex(where: { $0.state == .on }) else {
+            showStatus("Search for the film, or type its name and click Use Typed Name.")
+            return
+        }
         finish(names[index] == choice.guessedName ? nil : names[index])
     }
 

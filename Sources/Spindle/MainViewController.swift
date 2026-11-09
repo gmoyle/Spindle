@@ -737,6 +737,17 @@ extension MainViewController: DriveDetectorDelegate {
                 }
                 return
             }
+            // A label like DVD_VIDEO names the format, not the film: searching it
+            // only finds unrelated titles. Rip under a placeholder and ask.
+            let rawLabel = (drive.mountPoint as NSString).lastPathComponent
+            if DiscTitleQuery.isGenericLabel(rawLabel) {
+                let placeholder = DiscTitleQuery.placeholderName()
+                self.resolvedDiscTitle = placeholder
+                self.updateDriveDropdown()
+                self.autoStartRipping(for: drive)
+                self.askWhichFilm(forGenericLabelDisc: drive, placeholder: placeholder)
+                return
+            }
             self.lookupDiscTitle(volumeName: drive.name) { resolution in
                 let title = resolution?.best.displayName
                 self.resolvedDiscTitle = title

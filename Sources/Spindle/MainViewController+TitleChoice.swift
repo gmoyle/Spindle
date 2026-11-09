@@ -33,21 +33,36 @@ extension MainViewController {
     /// discs ("FIREFLY_D1") are named episode by episode instead, so they aren't asked.
     func askWhichFilm(for drive: OpticalDrive, resolution: DiscTitleQuery.Resolution) {
         let label = TVDiscLabel(volumeName: drive.name)
+        guard !resolution.isConfident, label.season == nil, label.disc == nil else { return }
+        askWhichFilm(for: drive, choice: TitleChoice(discName: drive.name, guessedName: resolution.best.displayName,
+                                                     choices: resolution.choices),
+                     discOwnName: Self.discOwnName(drive.name))
+    }
+
+    /// A disc whose label doesn't name the film ("DVD_VIDEO"): it rips under a
+    /// placeholder name, and the window asks for the real one.
+    func askWhichFilm(forGenericLabelDisc drive: OpticalDrive, placeholder: String) {
+        let label = (drive.mountPoint as NSString).lastPathComponent
+        askWhichFilm(for: drive, choice: TitleChoice(discName: label, guessedName: placeholder, choices: [],
+                                                     labelIsGeneric: true),
+                     discOwnName: nil)
+    }
+
+    private func askWhichFilm(for drive: OpticalDrive, choice: TitleChoice, discOwnName: String?) {
         // Only a disc that was just queued (not one skipped as already ripped).
-        guard !resolution.isConfident, label.season == nil, label.disc == nil,
-              conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint),
+        guard conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint),
               let job = conversionQueue.getAllJobs().last(where: { $0.sourcePath == drive.mountPoint }),
               !testingUtils.isRunningInTestEnvironment else { return }
-
-        let choice = TitleChoice(discName: drive.name, resolution: resolution)
         choice.jobId = job.id
         titleChoices.append(choice)
-        appendToLog("Not sure which film \(drive.name) is; ripping it as \(choice.guessedName). "
-                    + "Pick the right one in the “Which film is this?” window.")
+        appendToLog(choice.labelIsGeneric
+            ? "\(choice.discName) doesn't say which film it is; ripping it as \(choice.guessedName). "
+              + "Name it in the “Which film is this?” window."
+            : "Not sure which film \(drive.name) is; ripping it as \(choice.guessedName). "
+              + "Pick the right one in the “Which film is this?” window.")
 
-        let ownName = Self.discOwnName(drive.name)
-        let chooser = TitleChooserWindowController(choice: choice, discOwnName: ownName)
-        chooser.onChoose = { [weak self, weak choice] name in
+        let chooser = TitleChooserWindowController(choice: choice, discOwnName: discOwnName)
+        chooser.onChoose = { [weak self, weak choice] (name: String?) in
             guard let self = self, let choice = choice else { return }
             guard let name = name else {
                 self.appendToLog("Keeping \(choice.guessedName) for \(choice.discName).")

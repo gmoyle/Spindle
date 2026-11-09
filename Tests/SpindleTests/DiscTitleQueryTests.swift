@@ -114,3 +114,64 @@ final class TitleChoiceTests: TempFolderTestCase {
         XCTAssertThrowsError(try TitleRetitler.retitle(folder: path("Other"), from: "Heat (1995)", to: "Heat (1986)"))
     }
 }
+
+/// Discs whose label doesn't name the film, and naming one by hand.
+final class ManualTitleTests: XCTestCase {
+
+    private struct FakeMovies: MovieMetadataProvider {
+        let name = "Fake"
+        let results: [MovieMatch]
+        func searchMovies(query: String, completion: @escaping ([MovieMatch]) -> Void) { completion(results) }
+    }
+
+    func testGenericLabels() {
+        for label in ["DVD_VIDEO", "Dvd Video", "VIDEO_TS", "DVD", "BDROM", "Untitled"] {
+            XCTAssertTrue(DiscTitleQuery.isGenericLabel(label), label)
+        }
+        for label in ["SOMETHINGS_GOTTA_GIVE", "THE_ABYSS", "HOT_FUZZ"] {
+            XCTAssertFalse(DiscTitleQuery.isGenericLabel(label), label)
+        }
+        let date = Date(timeIntervalSince1970: 1_762_689_780)   // 2025-11-09 12:03 UTC
+        XCTAssertTrue(DiscTitleQuery.placeholderName(at: date).hasPrefix("Untitled Disc 2025-11-"))
+        XCTAssertFalse(DiscTitleQuery.placeholderName(at: date).contains(":"))
+    }
+
+    func testTypedNames() {
+        XCTAssertEqual(TitleChoice.typedName("  Something's Gotta Give 2003 "), "Something's Gotta Give (2003)")
+        XCTAssertEqual(TitleChoice.typedName("Something's Gotta Give (2003)"), "Something's Gotta Give (2003)")
+        XCTAssertEqual(TitleChoice.typedName("Blade Runner 2049"), "Blade Runner (2049)")
+        XCTAssertEqual(TitleChoice.typedName("Mission: Impossible"), "Mission- Impossible")
+        XCTAssertNil(TitleChoice.typedName("   "))
+    }
+
+    func testChooserSearchesAndUsesTypedName() throws {
+        let choice = TitleChoice(discName: "DVD_VIDEO", guessedName: "Untitled Disc 2026-11-09 12-03",
+                                 choices: [], labelIsGeneric: true)
+        let chooser = TitleChooserWindowController(choice: choice, discOwnName: nil)
+        XCTAssertEqual(chooser.offeredNames, [])
+        chooser.provider = FakeMovies(results: [MovieMatch(title: "LeAnn Rimes: Something's Gotta Give", year: "2006"),
+                                                MovieMatch(title: "Something's Gotta Give", year: "2003")])
+        chooser.searchField.stringValue = "somethings gotta give 2003"
+        chooser.search()
+        let searched = expectation(description: "results shown")
+        DispatchQueue.main.async { searched.fulfill() }
+        wait(for: [searched], timeout: 2)
+        XCTAssertEqual(chooser.offeredNames.first, "Something's Gotta Give (2003)")
+
+        // Snapshot for a look at the layout (not asserted).
+        chooser.window?.appearance = NSAppearance(named: .aqua)
+        if let view = chooser.window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+            view.wantsLayer = true
+            view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            view.cacheDisplay(in: view.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?
+                .write(to: URL(fileURLWithPath: NSTemporaryDirectory() + "title-chooser.png"))
+        }
+
+        var chosen: String?
+        chooser.onChoose = { chosen = $0 }
+        chooser.searchField.stringValue = "Something's Gotta Give 2003"
+        chooser.useTypedName()
+        XCTAssertEqual(chosen, "Something's Gotta Give (2003)")
+    }
+}

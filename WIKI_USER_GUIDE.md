@@ -85,6 +85,16 @@ straight away if the rip has finished, or when it does. Ignore the window and th
 best guess stays. TV season discs aren't asked; their episodes are named from the
 series instead.
 
+If the right film isn't listed, type its name in the window's search box and press
+Return to search again, or click **Use Typed Name** to name it exactly as typed. A
+year at the end becomes `(Year)`: "Something's Gotta Give 2003" names it
+`Something's Gotta Give (2003)`.
+
+Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS` or similar, which says nothing
+about the film. Spindle doesn't look those up (it would only find unrelated
+titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
+search box ready, so you can name it.
+
 With **Sort rips into Movies / TV
 Shows folders** on With **Sort rips into Movies / TV
 Shows folders** on (Settings → Output & Routing), each finished rip is classified
