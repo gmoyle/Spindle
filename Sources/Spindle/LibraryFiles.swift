@@ -136,15 +136,26 @@ enum LibraryFiles {
     /// same disc (the folder already there was recorded for `discIdentity`)
     /// replaces that import's files in place; anyone else's folder of the same
     /// name is left alone and this one gets " (2)". Returns the destination.
+    /// - Parameter asEditions: the folder is a film's: another disc of the same
+    ///   film joins the existing folder as an edition (`fileEdition`) instead
+    ///   of making a " (2)" folder.
     static func fileFolder(_ folderPath: String, into root: String, discIdentity: String?,
+                           asEditions: Bool = false,
                            history: RipHistoryStore = .shared,
                            fileManager: FileManager = .default) throws -> String {
         try? fileManager.createDirectory(atPath: root, withIntermediateDirectories: true)
         var destination = (root as NSString).appendingPathComponent((folderPath as NSString).lastPathComponent)
         if fileManager.fileExists(atPath: destination) {
-            if let identity = discIdentity,
-               let previous = history.entry(forIdentity: identity),
-               standardized(previous.outputLocation) == standardized(destination) {
+            let sameDisc = discIdentity.flatMap { history.entry(forIdentity: $0) }
+                .map { standardized($0.outputLocation) == standardized(destination) } ?? false
+            // A folder holding editions: even a re-rip must touch only its own.
+            let hasEditions = !MovieEdition.editions(in: destination, fileManager: fileManager)
+                .allSatisfy { $0.edition == nil }
+            if asEditions, !sameDisc || hasEditions {
+                try fileEdition(from: folderPath, into: destination, fileManager: fileManager)
+                return destination
+            }
+            if sameDisc {
                 try replaceFiles(from: folderPath, into: destination, fileManager: fileManager)
                 return destination
             }

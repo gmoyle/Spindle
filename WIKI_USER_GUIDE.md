@@ -95,6 +95,26 @@ about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
 search box ready, so you can name it.
 
+### Several editions of one film
+
+Rip the theatrical cut and the director's cut of a film and both land in the same
+folder, one file per edition, named so Plex shows them as editions of one film:
+
+```
+Movies/Army of Darkness (1993)/
+  Army of Darkness (1993) {edition-Theatrical Cut}.mkv
+  Army of Darkness (1993) {edition-Director's Cut}.mkv
+```
+
+Spindle reads the edition from the disc label: `DIRECTORS_CUT` or a final `DC`,
+`THEATRICAL`, `EXTENDED`, `UNRATED`, `UNCUT`, `ULTIMATE_CUT`, `FINAL_CUT`, `REDUX`,
+`IMAX`, `SPECIAL_EDITION` and similar. If the film's first rip came from a disc
+whose label named its edition, that file is tagged too when the second arrives;
+otherwise it stays untagged, which Plex treats as the main version. A disc whose
+label doesn't name its edition is filed as `Version 2` (then `Version 3`…); rename
+the file's `{edition-…}` part to whatever you like. Re-ripping a disc replaces only
+its own edition.
+
 With **Sort rips into Movies / TV
 Shows folders** on With **Sort rips into Movies / TV
 Shows folders** on (Settings → Output & Routing), each finished rip is classified
