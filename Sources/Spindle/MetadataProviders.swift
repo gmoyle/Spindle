@@ -49,7 +49,9 @@ enum DiscTitleQuery {
         let words = volumeName
             .replacingOccurrences(of: "_", with: " ")
             .split(separator: " ").map(String.init)
-        let cleanedWords = words.filter { !volumeLabelJunk.contains($0.lowercased()) && Int($0) == nil }
+        // "ARMY_OF_DARKNESS_DIRECTORS_CUT" searches for "ARMY OF DARKNESS".
+        let titleWords = MovieEdition.split(volumeName: volumeName).titleWords
+        let cleanedWords = titleWords.filter { !volumeLabelJunk.contains($0.lowercased()) && Int($0) == nil }
 
         let raw = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
         let cleaned = cleanedWords.joined(separator: " ").trimmingCharacters(in: .whitespaces)

@@ -78,11 +78,23 @@ enum TitleRetitler {
 
         var destination = ((folder as NSString).deletingLastPathComponent as NSString).appendingPathComponent(newBase)
         if fileManager.fileExists(atPath: destination) {
+            // The film is already there (another edition): join its folder.
+            if isMovieFolder(destination, base: newBase, fileManager: fileManager) {
+                try LibraryFiles.fileEdition(from: folder, into: destination, fileManager: fileManager)
+                history.updateOutputLocation(from: folder, to: destination)
+                return destination
+            }
             destination = LibraryFiles.uniqueFolderPath(destination, fileManager: fileManager)
         }
         try fileManager.moveItem(atPath: folder, toPath: destination)
         history.updateOutputLocation(from: folder, to: destination)
         return destination
+    }
+
+    /// A folder holding a rip of the film `base` names (any edition).
+    static func isMovieFolder(_ folder: String, base: String, fileManager: FileManager = .default) -> Bool {
+        let names = (try? fileManager.contentsOfDirectory(atPath: folder)) ?? []
+        return names.contains { $0.hasPrefix(base) && $0.hasSuffix(".mkv") }
     }
 
     /// The movie folder a finished job's files are in, if they're all in one

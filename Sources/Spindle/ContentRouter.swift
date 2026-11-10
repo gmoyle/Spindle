@@ -109,8 +109,9 @@ enum ContentRouter {
     /// A re-rip of the same disc (the library folder's recorded rip has the
     /// same `discIdentity`) replaces that rip's files in place rather than
     /// creating a "(2)" duplicate; anything else in the folder (artwork, NAS
-    /// thumbnails) is left alone. A different disc with the same folder name
-    /// still gets a " (2)" suffix.
+    /// thumbnails) is left alone. Another disc of the same film (a director's
+    /// cut) joins the folder as an edition; for TV, a different disc with the
+    /// same folder name still gets a " (2)" suffix.
     @discardableResult
     static func route(folderPath: String,
                       to type: ContentType,
@@ -125,6 +126,7 @@ enum ContentRouter {
         let destination: String
         do {
             destination = try LibraryFiles.fileFolder(folderPath, into: root, discIdentity: discIdentity,
+                                                      asEditions: type == .movie,
                                                       history: history, fileManager: fileManager)
         } catch {
             throw RouteError.moveFailed(error.localizedDescription)

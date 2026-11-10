@@ -2,7 +2,8 @@ import XCTest
 @testable import Spindle
 
 /// Re-ripping a disc already in the library replaces its files in place;
-/// a different disc with the same folder name still gets a " (2)" folder.
+/// another disc of the same film joins the folder as an edition; a TV rip
+/// from a different disc with the same folder name still gets a " (2)" folder.
 final class ContentRouterReplaceTests: XCTestCase {
     private var base = ""
     private var moviesRoot = ""
@@ -55,18 +56,25 @@ final class ContentRouterReplaceTests: XCTestCase {
         XCTAssertTrue(try fm.contentsOfDirectory(atPath: library).allSatisfy { !$0.contains(".partial-") })
     }
 
-    func testDifferentDiscGetsSuffixedFolder() throws {
+    func testDifferentDiscOfAFilmJoinsItsFolderAsAnEdition() throws {
         let library = try existingLibraryFolder(identity: "FILM#abc")
         let rip = try makeRip("other")
         let dest = try ContentRouter.route(folderPath: rip, to: .movie, discIdentity: "OTHER#def",
                                            history: history)
-        XCTAssertEqual(dest, library + " (2)")
+        XCTAssertEqual(dest, library)
         XCTAssertEqual(try String(contentsOfFile: library + "/Film (1985).mkv"), "old")
+        XCTAssertEqual(try String(contentsOfFile: library + "/Film (1985) {edition-Version 2}.mkv"), "other")
+        XCTAssertFalse(fm.fileExists(atPath: library + " (2)"))
     }
 
-    func testUnknownIdentityGetsSuffixedFolder() throws {
-        let library = try existingLibraryFolder(identity: "FILM#abc")
-        let dest = try ContentRouter.route(folderPath: try makeRip("x"), to: .movie, history: history)
-        XCTAssertEqual(dest, library + " (2)")
+    func testDifferentTVDiscGetsSuffixedFolder() throws {
+        let tvRoot = (base as NSString).appendingPathComponent("TV")
+        let originalTV = SettingsManager.shared.tvShowsRootDirectory
+        SettingsManager.shared.tvShowsRootDirectory = tvRoot
+        defer { SettingsManager.shared.tvShowsRootDirectory = originalTV }
+        let existing = (tvRoot as NSString).appendingPathComponent("Film (1985)")
+        try fm.createDirectory(atPath: existing, withIntermediateDirectories: true)
+        let dest = try ContentRouter.route(folderPath: try makeRip("x"), to: .tvShow, history: history)
+        XCTAssertEqual(dest, existing + " (2)")
     }
 }

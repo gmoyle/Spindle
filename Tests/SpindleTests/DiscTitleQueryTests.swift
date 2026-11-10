@@ -93,14 +93,16 @@ final class TitleChoiceTests: TempFolderTestCase {
         XCTAssertEqual(history.entry(forIdentity: "OCEANS#1")?.outputLocation, renamed)
     }
 
-    func testRetitleKeepsAnotherFilmsFolder() throws {
+    func testRetitleOntoAFilmAlreadyThereAddsAnEditionAndKeepsIt() throws {
         try write("Movies/Heat (1986)/Heat (1986).mkv", "guess")
         try write("Movies/Heat (1995)/Heat (1995).mkv", "already there")
         let renamed = try TitleRetitler.retitle(folder: path("Movies/Heat (1986)"), from: "Heat (1986)",
                                                 to: "Heat (1995)",
                                                 history: RipHistoryStore(fileURL: URL(fileURLWithPath: path("h.json"))))
-        XCTAssertEqual(renamed, path("Movies/Heat (1995) (2)"))
+        XCTAssertEqual(renamed, path("Movies/Heat (1995)"))
         XCTAssertEqual(try String(contentsOfFile: path("Movies/Heat (1995)/Heat (1995).mkv")), "already there")
+        XCTAssertEqual(try String(contentsOfFile: path("Movies/Heat (1995)/Heat (1995) {edition-Version 2}.mkv")),
+                       "guess")
     }
 
     func testTitlesWithColonsAndTVRips() throws {

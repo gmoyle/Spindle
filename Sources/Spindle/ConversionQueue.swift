@@ -421,7 +421,12 @@ class ConversionQueue {
             "settings": fingerprint
         ]
         if let data = try? JSONSerialization.data(withJSONObject: marker, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: URL(fileURLWithPath: finalDir).appendingPathComponent("rip_complete.json"))
+            // In a folder holding several editions, each disc's marker is named
+            // after its edition so one disc's doesn't replace another's.
+            let volume = (job.sourcePath as NSString).lastPathComponent
+            let edition = MovieEdition.editions(in: finalDir).first { $0.volume == volume }?.edition
+            let name = MovieEdition.sidecarName("rip_complete", edition: edition)
+            try? data.write(to: URL(fileURLWithPath: finalDir).appendingPathComponent(name))
         }
     }
 
