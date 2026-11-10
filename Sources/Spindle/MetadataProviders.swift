@@ -90,6 +90,31 @@ enum DiscTitleQuery {
         return variants
     }
 
+    /// Labels that name the format, not the film ("DVD_VIDEO", "VIDEO_TS"):
+    /// searching them only finds unrelated titles, so they aren't looked up.
+    static func isGenericLabel(_ label: String) -> Bool {
+        let key = label.trimmingCharacters(in: .whitespaces).uppercased()
+            .replacingOccurrences(of: " ", with: "_")
+        return key.isEmpty || HomeVideoDetector.genericLabels.contains(key)
+            || HomeVideoDetector.genericLabels.contains(key.replacingOccurrences(of: "_", with: " "))
+            || genericLabels.contains(key)
+    }
+
+    /// More labels authoring tools leave on pressed discs.
+    static let genericLabels: Set<String> = [
+        "DVD_VIDEO_DISC", "DVDVOLUME", "DVD_VOLUME", "VOLUME", "VOLUME_1", "BDROM", "BD_ROM", "BLURAY",
+        "BLU-RAY", "BD", "BDMV", "DISC1", "DISC_1", "MOVIE", "FEATURE", "MAIN", "TITLE", "CDROM"
+    ]
+
+    /// What a disc with a generic label is called until someone names it:
+    /// unique, so two such discs don't share a folder.
+    static func placeholderName(at date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH-mm"
+        return "Untitled Disc \(formatter.string(from: date))"
+    }
+
     /// The release year a label carries ("OCEANS_ELEVEN_2001" → "2001").
     static func year(inVolumeName volumeName: String) -> String? {
         let thisYear = Calendar.current.component(.year, from: Date())

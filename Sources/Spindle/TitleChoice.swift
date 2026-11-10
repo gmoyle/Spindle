@@ -5,7 +5,12 @@ import Foundation
 /// finishes), renames the finished folder and files.
 final class TitleChoice {
     let discName: String
-    let resolution: DiscTitleQuery.Resolution
+    /// The name the rip is being made under.
+    let guessedName: String
+    /// Matches to offer, best first (empty for a generic label).
+    let choices: [MovieMatch]
+    /// The label says nothing about the film ("DVD_VIDEO").
+    let labelIsGeneric: Bool
     /// The queue job ripping the disc.
     var jobId: UUID?
     /// Set once the rip finished: the folder its files ended up in.
@@ -13,13 +18,27 @@ final class TitleChoice {
     /// What the user picked: a film's "Title (Year)", or the disc's own name.
     var chosenName: String?
 
-    init(discName: String, resolution: DiscTitleQuery.Resolution) {
+    init(discName: String, guessedName: String, choices: [MovieMatch], labelIsGeneric: Bool = false) {
         self.discName = discName
-        self.resolution = resolution
+        self.guessedName = guessedName
+        self.choices = choices
+        self.labelIsGeneric = labelIsGeneric
     }
 
-    /// The name the rip was made under.
-    var guessedName: String { resolution.best.displayName }
+    /// A name typed by hand, as the rip will be named: trimmed, and a trailing
+    /// bare year put in brackets ("Something's Gotta Give 2003" →
+    /// "Something's Gotta Give (2003)"). Nil when there's nothing usable.
+    static func typedName(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var words = trimmed.split(separator: " ").map(String.init)
+        if words.count >= 2, let last = words.last, last.count == 4,
+           let year = Int(last), (1890...2100).contains(year) {
+            words[words.count - 1] = "(\(last))"
+        }
+        let name = TitleRetitler.fileBase(words.joined(separator: " "))
+        return name.isEmpty ? nil : name
+    }
 }
 
 /// Renames a finished movie rip from one "Title (Year)" to another: the folder

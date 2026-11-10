@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Labels without apostrophes are found**: `OCEANS_ELEVEN_2001` is also searched as "Ocean's Eleven", and `MATRIX_THE` as "The Matrix". Titles are compared without punctuation.
 - **The year on a label picks the film**: `OCEANS_ELEVEN_2001` is the 2001 film, not the 1960 original.
 - **Which film is this?** When a lookup isn't sure, the disc rips under the best guess and a window lists the matches, with posters. Your pick renames the rip's folder and files, now or when the rip finishes. Nothing waits for an answer.
+- **Search or type the name**: the window has a search box for films that weren't offered, and **Use Typed Name** for anything the databases don't know.
+- **Generic labels** (`DVD_VIDEO`, `VIDEO_TS`…) aren't looked up any more, since that only found unrelated titles (a lighting tutorial for *Something's Gotta Give*). Such a disc rips as `Untitled Disc <date time>` and the window asks for its name.
 
 ### 🐛 Fixed
 - A disc that finished reading while the Mac was locked stayed in the drive: macOS refused the eject, and Spindle didn't try again. It now ejects as soon as you unlock. **Start Ripping** no longer picks a disc that has already left the drive.
