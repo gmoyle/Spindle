@@ -14,6 +14,14 @@ final class RoutingReviewWindowController: NSWindowController {
 
     private var tableView: NSTableView!
     private var statusLabel: NSTextField!
+    private var spinner: NSProgressIndicator!
+    private var acceptAllButton: NSButton!
+    private var applyButton: NSButton!
+    /// Set while choices are being applied: moving a rip to a network library
+    /// can take minutes, and a second click would start the same moves again.
+    private(set) var isApplying = false
+    /// "Moving Reservoir Dogs (1 of 2)…" while applying.
+    private var progressText: String?
 
     convenience init() {
         let window = NSWindow(
@@ -59,6 +67,9 @@ final class RoutingReviewWindowController: NSWindowController {
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(statusLabel)
 
+        spinner = Self.makeSpinner()
+        content.addSubview(spinner)
+
         let scroll = NSScrollView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.hasVerticalScroller = true
@@ -88,21 +99,16 @@ final class RoutingReviewWindowController: NSWindowController {
         scroll.documentView = tableView
         content.addSubview(scroll)
 
-        let acceptAll = NSButton(title: "Accept All Guesses", target: self,
-                                 action: #selector(acceptAllGuesses))
-        acceptAll.translatesAutoresizingMaskIntoConstraints = false
-
-        let apply = NSButton(title: "Apply", target: self, action: #selector(applyChoices))
-        apply.translatesAutoresizingMaskIntoConstraints = false
-        apply.keyEquivalent = "\r"
-
+        let (acceptAll, apply) = makeButtons()
         content.addSubview(acceptAll)
         content.addSubview(apply)
 
         NSLayoutConstraint.activate([
             statusLabel.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
             statusLabel.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
-            statusLabel.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+            statusLabel.trailingAnchor.constraint(equalTo: spinner.leadingAnchor, constant: -8),
+            spinner.centerYAnchor.constraint(equalTo: statusLabel.centerYAnchor),
+            spinner.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
 
             scroll.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 10),
             scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
@@ -119,7 +125,32 @@ final class RoutingReviewWindowController: NSWindowController {
         updateStatus()
     }
 
+    private func makeButtons() -> (acceptAll: NSButton, apply: NSButton) {
+        let acceptAll = NSButton(title: "Accept All Guesses", target: self,
+                                 action: #selector(acceptAllGuesses))
+        acceptAll.translatesAutoresizingMaskIntoConstraints = false
+        let apply = NSButton(title: "Apply", target: self, action: #selector(applyChoices))
+        apply.translatesAutoresizingMaskIntoConstraints = false
+        apply.keyEquivalent = "\r"
+        acceptAllButton = acceptAll
+        applyButton = apply
+        return (acceptAll, apply)
+    }
+
+    private static func makeSpinner() -> NSProgressIndicator {
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        return spinner
+    }
+
     private func updateStatus() {
+        if isApplying, let progress = progressText {
+            statusLabel.stringValue = progress
+            return
+        }
         let n = items.count
         statusLabel.stringValue = n == 0
             ? "No rips awaiting routing. New rips will appear here."
@@ -131,6 +162,7 @@ final class RoutingReviewWindowController: NSWindowController {
     /// default) and then applies — so the button actually drains the queue rather
     /// than only re-selecting toggles the user hadn't touched.
     @objc private func acceptAllGuesses() {
+        guard !isApplying else { return }
         for item in items {
             choices[item.id] = item.guessedType == .unknown ? .movie : item.guessedType
         }
@@ -139,14 +171,20 @@ final class RoutingReviewWindowController: NSWindowController {
     }
 
     @objc private func applyChoices() {
-        // Filing TV episodes looks the series up online, so it runs off the
-        // main thread; the window updates when every choice is applied.
+        // Moving to a network library, and filing TV episodes (which looks the
+        // series up online), take a while, so it runs off the main thread with
+        // the window's controls locked until every choice is applied.
+        guard !isApplying, !items.isEmpty else { return }
         let decisions = items.map { ($0, choices[$0.id] ?? .movie) }
-        statusLabel.stringValue = "Moving \(decisions.count) rip\(decisions.count == 1 ? "" : "s")..."
+        setApplying(true)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             var moved = 0
             var failures: [String] = []
-            for (item, type) in decisions {
+            for (index, (item, type)) in decisions.enumerated() {
+                let progress = decisions.count == 1
+                    ? "Moving \(item.discName)…"
+                    : "Moving \(item.discName) (\(index + 1) of \(decisions.count))…"
+                DispatchQueue.main.async { self?.showProgress(progress) }
                 do {
                     let status = try ContentRouter.applyReviewChoice(item, as: type)
                     Logger.shared.log(status, level: .info, category: .general)
@@ -160,7 +198,27 @@ final class RoutingReviewWindowController: NSWindowController {
         }
     }
 
+    private func showProgress(_ text: String) {
+        progressText = text
+        updateStatus()
+    }
+
+    /// Lock or unlock the window's controls around applying choices.
+    private func setApplying(_ applying: Bool) {
+        isApplying = applying
+        progressText = applying ? "Moving…" : nil
+        acceptAllButton.isEnabled = !applying
+        applyButton.isEnabled = !applying
+        tableView.isEnabled = !applying
+        for row in 0..<tableView.numberOfRows {
+            (tableView.view(atColumn: 2, row: row, makeIfNecessary: false) as? NSControl)?.isEnabled = !applying
+        }
+        if applying { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
+        updateStatus()
+    }
+
     private func finishApplying(moved: Int, failures: [String]) {
+        setApplying(false)
         for id in choices.keys where !queue.items.contains(where: { $0.id == id }) { choices[id] = nil }
         reload()
         tableView.reloadData()
@@ -214,6 +272,7 @@ extension RoutingReviewWindowController: NSTableViewDataSource, NSTableViewDeleg
                                          target: self, action: #selector(choiceChanged(_:)))
             seg.tag = row
             seg.selectedSegment = (choices[item.id] ?? .movie) == .movie ? 0 : 1
+            seg.isEnabled = !isApplying
             return seg
         default:
             return nil
