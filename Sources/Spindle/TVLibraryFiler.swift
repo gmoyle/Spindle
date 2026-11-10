@@ -197,11 +197,12 @@ enum TVLibraryFiler {
     }
 
     /// The rip folder once its videos have moved out holds only Spindle's own
-    /// notes (disc_info.json); remove it then.
+    /// notes (disc_info.json, a film .nfo written before it was known to be TV);
+    /// remove it then.
     private static func removeIfOnlyMetadata(_ folder: String, fileManager: FileManager) {
         let leftovers: Set<String> = ["disc_info.json", "rip_complete.json", ".DS_Store"]
         guard let names = try? fileManager.contentsOfDirectory(atPath: folder),
-              names.allSatisfy(leftovers.contains) else { return }
+              names.allSatisfy({ leftovers.contains($0) || $0.hasSuffix(".nfo") }) else { return }
         try? fileManager.removeItem(atPath: folder)
     }
 }

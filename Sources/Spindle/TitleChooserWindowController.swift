@@ -73,7 +73,7 @@ final class TitleChooserWindowController: NSWindowController {
         listStack.spacing = 8
         stack.addArrangedSubview(listStack)
 
-        let keep = NSButton(title: "Keep \(choice.guessedName)", target: self, action: #selector(keepGuess))
+        let keep = NSButton(title: "Keep \(choice.guessedDisplayName)", target: self, action: #selector(keepGuess))
         // No default button: Return in the search box searches.
         let use = NSButton(title: "Use This Film", target: self, action: #selector(useSelection))
         let buttons = NSStackView(views: [keep, use])
@@ -96,10 +96,10 @@ final class TitleChooserWindowController: NSWindowController {
     private var introText: String {
         if choice.labelIsGeneric {
             return "The disc's label (\(choice.discName)) doesn't say which film it is, so Spindle is ripping "
-                + "it as \(choice.guessedName). Search for the film, or type its name, and the files are "
+                + "it as \(choice.guessedDisplayName). Search for the film, or type its name, and the files are "
                 + "renamed when the rip finishes."
         }
-        return "Spindle isn't sure which film \(choice.discName) is. It's ripping it as \(choice.guessedName). "
+        return "Spindle isn't sure which film \(choice.discName) is. It's ripping it as \(choice.guessedDisplayName). "
             + "Pick the right one, or search for it, and the files are renamed when the rip finishes."
     }
 
@@ -112,7 +112,9 @@ final class TitleChooserWindowController: NSWindowController {
         radios.removeAll()
         names.removeAll()
         for match in matches.prefix(DiscTitleQuery.maxChoices) {
-            listStack.addArrangedSubview(row(title: match.displayName, poster: match.posterURL))
+            // Shown as "Title (Year)"; named with its id, so Plex matches this film.
+            listStack.addArrangedSubview(row(title: match.libraryName, poster: match.posterURL,
+                                             label: match.displayName))
         }
         if let own = discOwnName, !names.contains(own) {
             listStack.addArrangedSubview(row(title: own, poster: nil, label: "Keep the disc's name: \(own)"))

@@ -56,6 +56,9 @@ class MainViewController: NSViewController {
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
     internal var resolvedDiscTitle: String? = nil
+    /// The looked-up film's library name, with its id ("Title (Year) {imdb-tt…}").
+    /// Used only while it still matches `resolvedDiscTitle`.
+    internal var resolvedLibraryName: String?
     /// The album for an audio CD in the drive, once MusicBrainz has answered.
     internal var resolvedAlbum: AlbumRelease? = nil
 
@@ -751,6 +754,7 @@ extension MainViewController: DriveDetectorDelegate {
             self.lookupDiscTitle(volumeName: drive.name) { resolution in
                 let title = resolution?.best.displayName
                 self.resolvedDiscTitle = title
+                self.resolvedLibraryName = resolution?.best.libraryName
                 self.updateDriveDropdown()
                 if let t = title {
                     self.appendToLog(resolution?.isConfident == true ? "Disc identified: \(t)"

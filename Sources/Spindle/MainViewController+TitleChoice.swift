@@ -34,7 +34,7 @@ extension MainViewController {
     func askWhichFilm(for drive: OpticalDrive, resolution: DiscTitleQuery.Resolution) {
         let label = TVDiscLabel(volumeName: drive.name)
         guard !resolution.isConfident, label.season == nil, label.disc == nil else { return }
-        askWhichFilm(for: drive, choice: TitleChoice(discName: drive.name, guessedName: resolution.best.displayName,
+        askWhichFilm(for: drive, choice: TitleChoice(discName: drive.name, guessedName: resolution.best.libraryName,
                                                      choices: resolution.choices),
                      discOwnName: Self.discOwnName(drive.name))
     }
@@ -56,21 +56,21 @@ extension MainViewController {
         choice.jobId = job.id
         titleChoices.append(choice)
         appendToLog(choice.labelIsGeneric
-            ? "\(choice.discName) doesn't say which film it is; ripping it as \(choice.guessedName). "
+            ? "\(choice.discName) doesn't say which film it is; ripping it as \(choice.guessedDisplayName). "
               + "Name it in the “Which film is this?” window."
-            : "Not sure which film \(drive.name) is; ripping it as \(choice.guessedName). "
+            : "Not sure which film \(drive.name) is; ripping it as \(choice.guessedDisplayName). "
               + "Pick the right one in the “Which film is this?” window.")
 
         let chooser = TitleChooserWindowController(choice: choice, discOwnName: discOwnName)
         chooser.onChoose = { [weak self, weak choice] (name: String?) in
             guard let self = self, let choice = choice else { return }
             guard let name = name else {
-                self.appendToLog("Keeping \(choice.guessedName) for \(choice.discName).")
+                self.appendToLog("Keeping \(choice.guessedDisplayName) for \(choice.discName).")
                 self.titleChoices.removeAll { $0 === choice }
                 return
             }
             choice.chosenName = name
-            self.appendToLog("\(choice.discName) will be named \(name).")
+            self.appendToLog("\(choice.discName) will be named \(MovieMatch.displayName(ofLibraryName: name)).")
             self.applyTitleChoiceIfReady(choice)
         }
         titleChooserWindows.append(chooser)

@@ -137,7 +137,8 @@ extension MediaRipper {
         }
         let movieName = extractMovieName(from: dvdPath, mediaType: currentMediaType)
         let folder = organizedDirectory(for: configuration, mediaType: currentMediaType, fallbackName: movieName)
-        createDiscInfo(in: folder, mediaPath: dvdPath, mediaType: currentMediaType, movieName: movieName)
+        createDiscInfo(in: folder, mediaPath: dvdPath, mediaType: currentMediaType, movieName: movieName,
+                       libraryName: plexBaseName(from: configuration))
         return folder
     }
 
