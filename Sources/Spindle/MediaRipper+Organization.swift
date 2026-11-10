@@ -289,8 +289,11 @@ extension MediaRipper {
         return movieDirectory
     }
 
-    /// Create disc information file
-    func createDiscInfo(in directory: String, mediaPath: String, mediaType: MediaType, movieName: String) {
+    /// Create disc information file, and the film's nfo when it has a
+    /// resolved name (`plexBaseName`).
+    func createDiscInfo(in directory: String, mediaPath: String, mediaType: MediaType, movieName: String,
+                        libraryName: String? = nil) {
+        if let name = libraryName { MovieNFO.write(in: directory, base: name) }
         let discInfo: [String: Any] = [
             "movie_name": movieName,
             "media_type": mediaType.folderName,

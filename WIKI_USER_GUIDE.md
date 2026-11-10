@@ -95,6 +95,26 @@ about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
 search box ready, so you can name it.
 
+### Exact matches in Plex
+
+When Spindle identifies a film, it files it with the film's IMDb id in the
+folder and file names (the TMDB id if you use a TMDB key):
+
+```
+Movies/Army of Darkness (1993) {imdb-tt0106308}/
+  Army of Darkness (1993) {imdb-tt0106308}.mkv
+  Army of Darkness (1993) {imdb-tt0106308}.nfo
+```
+
+Plex reads the id and matches that exact film, instead of searching by title and
+possibly picking another film with the same name. The `.nfo` file does the same
+for Kodi, Jellyfin and Emby; Plex ignores it. A film you name by typing it in the
+"Which film is this?" window has no id, so Plex searches for it as before.
+
+If your library already has the film in a folder without the id (ripped by an
+older Spindle), the folder and its files get the id when the next disc of that
+film is filed, so the film stays in one folder.
+
 ### Several editions of one film
 
 Rip the theatrical cut and the director's cut of a film and both land in the same

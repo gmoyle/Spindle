@@ -72,8 +72,8 @@ extension MediaRipper {
             for: configuration, mediaType: .hddvd, fallbackName: movieName)
 
         // Create disc info file
-        createDiscInfo(in: organizedOutputDirectory, mediaPath: hddvdPath,
-                      mediaType: .hddvd, movieName: movieName)
+        createDiscInfo(in: organizedOutputDirectory, mediaPath: hddvdPath, mediaType: .hddvd,
+                       movieName: movieName, libraryName: plexBaseName(from: configuration))
         
         // Log quality report
         Logger.shared.log(MediaRipper.generateQualityReport(qualityAssessment), level: .info, category: .general)

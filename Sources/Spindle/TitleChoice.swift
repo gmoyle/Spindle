@@ -5,7 +5,8 @@ import Foundation
 /// finishes), renames the finished folder and files.
 final class TitleChoice {
     let discName: String
-    /// The name the rip is being made under.
+    /// The name the rip is being made under (with the film's id, if any:
+    /// "Title (Year) {imdb-tt…}").
     let guessedName: String
     /// Matches to offer, best first (empty for a generic label).
     let choices: [MovieMatch]
@@ -17,6 +18,9 @@ final class TitleChoice {
     var finishedFolder: String?
     /// What the user picked: a film's "Title (Year)", or the disc's own name.
     var chosenName: String?
+
+    /// The guess as shown: "Title (Year)".
+    var guessedDisplayName: String { MovieMatch.displayName(ofLibraryName: guessedName) }
 
     init(discName: String, guessedName: String, choices: [MovieMatch], labelIsGeneric: Bool = false) {
         self.discName = discName
@@ -64,8 +68,22 @@ enum TitleRetitler {
                         history: RipHistoryStore = .shared,
                         fileManager: FileManager = .default) throws -> String {
         let oldBase = fileBase(oldName)
-        let newBase = fileBase(newName)
+        var newBase = fileBase(newName)
         guard (folder as NSString).lastPathComponent == oldBase else { throw RetitleError.notAMovieFolder(folder) }
+
+        // The film is already filed under the same title and year, with or
+        // without its id: settle on one name so it stays one folder.
+        let parent = (folder as NSString).deletingLastPathComponent
+        if let existing = LibraryFiles.existingFilmFolder(named: newBase, in: parent, fileManager: fileManager),
+           existing != folder {
+            let existingName = (existing as NSString).lastPathComponent
+            if MovieMatch.idTag(inLibraryName: newBase) != nil {
+                try retitle(folder: existing, from: existingName, to: newBase, history: history,
+                            fileManager: fileManager)
+            } else {
+                newBase = existingName
+            }
+        }
         guard oldBase != newBase else { return folder }
 
         for name in try fileManager.contentsOfDirectory(atPath: folder) where name.hasPrefix(oldBase) {
@@ -82,12 +100,14 @@ enum TitleRetitler {
             if isMovieFolder(destination, base: newBase, fileManager: fileManager) {
                 try LibraryFiles.fileEdition(from: folder, into: destination, fileManager: fileManager)
                 history.updateOutputLocation(from: folder, to: destination)
+                MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
                 return destination
             }
             destination = LibraryFiles.uniqueFolderPath(destination, fileManager: fileManager)
         }
         try fileManager.moveItem(atPath: folder, toPath: destination)
         history.updateOutputLocation(from: folder, to: destination)
+        MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
         return destination
     }
 

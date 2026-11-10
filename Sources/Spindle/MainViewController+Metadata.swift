@@ -41,12 +41,25 @@ extension MainViewController {
             includeChapters: true,
             mediaType: mediaType,
             autoDeinterlace: settingsManager.autoDeinterlace,
-            plexName: mediaType.isVideo && homeVideo == nil ? resolvedDiscTitle : nil,
+            plexName: mediaType.isVideo && homeVideo == nil ? libraryNameForRip : nil,
             hardwareAcceleration: settingsManager.hardwareAcceleration,
             ripBonusFeatures: settingsManager.ripBonusFeatures,
             album: mediaType == .audioCD ? resolvedAlbum : nil,
             photoDestination: mediaType == .photoDisc ? settingsManager.photoDestination : nil,
             homeVideo: homeVideo
         )
+    }
+}
+
+extension MainViewController {
+    /// The name a video rip is filed under: the looked-up film with its id
+    /// ("Title (Year) {imdb-tt…}") when that's still the disc's title, else the
+    /// title as it stands (typed by hand, a placeholder, or the label).
+    var libraryNameForRip: String? {
+        guard let title = resolvedDiscTitle else { return nil }
+        if let library = resolvedLibraryName, MovieMatch.displayName(ofLibraryName: library) == title {
+            return library
+        }
+        return title
     }
 }

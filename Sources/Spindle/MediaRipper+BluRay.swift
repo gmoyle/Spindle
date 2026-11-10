@@ -15,8 +15,8 @@ extension MediaRipper {
         let movieName = extractMovieName(from: blurayPath, mediaType: currentMediaType)
         let organizedOutputDirectory = organizedDirectory(
             for: configuration, mediaType: currentMediaType, fallbackName: movieName)
-        createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,
-                       mediaType: currentMediaType, movieName: movieName)
+        createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath, mediaType: currentMediaType,
+                       movieName: movieName, libraryName: plexBaseName(from: configuration))
 
         delegate?.mediaRipperDidUpdateProgress(0.0, currentItem: nil, totalItems: 1)
 
@@ -166,8 +166,8 @@ extension MediaRipper {
             for: configuration, mediaType: currentMediaType, fallbackName: movieName)
 
         // Create disc info file
-        createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath,
-                      mediaType: currentMediaType, movieName: movieName)
+        createDiscInfo(in: organizedOutputDirectory, mediaPath: blurayPath, mediaType: currentMediaType,
+                       movieName: movieName, libraryName: plexBaseName(from: configuration))
 
         // Step 2.5: Analyze disc for quality optimization
         let qualityAssessment: QualityAssessment

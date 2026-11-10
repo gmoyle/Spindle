@@ -20,28 +20,37 @@ enum OutputOrganizer {
         let year: Int?
         /// Whether content routing classified this as a movie / TV show / unknown.
         let contentType: ContentType
+        /// Tags after the year, kept in the folder name: " {imdb-tt0106308}".
+        var tags: String = ""
 
-        /// "Title (Year)" when a year is known, else just the title. This matches the
-        /// existing Plex folder/file naming so behavior is unchanged for the default
-        /// (By Media Type) structure.
+        /// "Title (Year)" when a year is known, else just the title, plus any
+        /// id tag. This matches the Plex folder/file naming so behavior is
+        /// unchanged for the default (By Media Type) structure.
         var plexName: String {
-            if let year = year { return "\(title) (\(year))" }
-            return title
+            let name = year.map { "\(title) (\($0))" } ?? title
+            return name + tags
         }
     }
 
     /// Parse a resolved display name (e.g. "Hangmen (2017)") into title + year.
     /// Falls back to the whole string as the title when there's no trailing "(YYYY)".
     static func parse(displayName: String, contentType: ContentType) -> RipInfo {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Trailing "{imdb-tt…}" style tags stay with the name, after the year.
+        var tags = ""
+        if let range = trimmed.range(of: #"(\s*\{[a-z]+-[^}]*\})+$"#, options: .regularExpression),
+           range.lowerBound > trimmed.startIndex {
+            tags = " " + trimmed[range].trimmingCharacters(in: .whitespaces)
+            trimmed = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+        }
         // Match a trailing " (YYYY)" with a plausible film year.
         if let range = trimmed.range(of: #"\s*\((19|20)\d{2}\)$"#, options: .regularExpression) {
             let yearString = trimmed[range].filter { $0.isNumber }
             let title = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
             return RipInfo(title: title.isEmpty ? trimmed : title,
-                           year: Int(yearString), contentType: contentType)
+                           year: Int(yearString), contentType: contentType, tags: tags)
         }
-        return RipInfo(title: trimmed, year: nil, contentType: contentType)
+        return RipInfo(title: trimmed, year: nil, contentType: contentType, tags: tags)
     }
 
     /// The organized output directory for a rip, based on the user's structure

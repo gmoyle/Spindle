@@ -7,11 +7,44 @@ struct MovieMatch: Equatable {
     let year: String?
     /// Poster image, for the "Which film is this?" chooser.
     var posterURL: URL?
+    /// "tt0106308", when the provider gives one (OMDb does).
+    var imdbID: String?
+    /// TMDB's movie id, when the match came from TMDB.
+    var tmdbID: String?
 
     /// Plex-style "Title (Year)".
     var displayName: String {
         guard let year = year, !year.isEmpty else { return title }
         return "\(title) (\(year))"
+    }
+
+    /// The id Plex matches on when it's in a folder or file name:
+    /// "imdb-tt0106308", else "tmdb-764".
+    var libraryIDTag: String? {
+        if let imdb = imdbID, imdb.hasPrefix("tt") { return "imdb-\(imdb)" }
+        return tmdbID.map { "tmdb-\($0)" }
+    }
+
+    /// The name a rip of this film is filed under:
+    /// "Army of Darkness (1993) {imdb-tt0106308}". With the id in the name,
+    /// Plex matches exactly this film instead of searching by title.
+    var libraryName: String {
+        libraryIDTag.map { "\(displayName) {\($0)}" } ?? displayName
+    }
+
+    /// "Army of Darkness (1993) {imdb-tt0106308}" → "Army of Darkness (1993)":
+    /// a library name without its id and edition tags, for showing.
+    static func displayName(ofLibraryName name: String) -> String {
+        name.replacingOccurrences(of: #"\s*\{[a-z]+-[^}]*\}"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The id tag in a library name ("imdb-tt0106308"), if it has one.
+    static func idTag(inLibraryName name: String) -> String? {
+        guard let range = name.range(of: #"\{(imdb-tt\d+|tmdb-\d+)\}"#, options: .regularExpression) else {
+            return nil
+        }
+        return String(name[range].dropFirst().dropLast())
     }
 }
 
@@ -198,7 +231,8 @@ struct OMDbProvider: MovieMetadataProvider {
         return results.compactMap { result in
             guard let title = result["Title"] as? String else { return nil }
             let poster = (result["Poster"] as? String).flatMap { $0.hasPrefix("http") ? URL(string: $0) : nil }
-            return MovieMatch(title: title, year: result["Year"] as? String, posterURL: poster)
+            return MovieMatch(title: title, year: result["Year"] as? String, posterURL: poster,
+                              imdbID: result["imdbID"] as? String)
         }
     }
 }

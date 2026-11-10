@@ -144,7 +144,24 @@ enum LibraryFiles {
                            history: RipHistoryStore = .shared,
                            fileManager: FileManager = .default) throws -> String {
         try? fileManager.createDirectory(atPath: root, withIntermediateDirectories: true)
+        var folderPath = folderPath
         var destination = (root as NSString).appendingPathComponent((folderPath as NSString).lastPathComponent)
+        if asEditions, !fileManager.fileExists(atPath: destination),
+           let existing = existingFilmFolder(named: (folderPath as NSString).lastPathComponent, in: root,
+                                             fileManager: fileManager) {
+            let name = (folderPath as NSString).lastPathComponent
+            let existingName = (existing as NSString).lastPathComponent
+            if MovieMatch.idTag(inLibraryName: name) != nil {
+                // The film's folder predates ids in names: give it this rip's id.
+                try TitleRetitler.retitle(folder: existing, from: existingName, to: name,
+                                          history: history, fileManager: fileManager)
+            } else {
+                // This rip has no id but the film's folder does: use its name.
+                folderPath = try TitleRetitler.retitle(folder: folderPath, from: name, to: existingName,
+                                                       history: history, fileManager: fileManager)
+                destination = existing
+            }
+        }
         if fileManager.fileExists(atPath: destination) {
             let sameDisc = discIdentity.flatMap { history.entry(forIdentity: $0) }
                 .map { standardized($0.outputLocation) == standardized(destination) } ?? false
@@ -163,6 +180,22 @@ enum LibraryFiles {
         }
         try moveFolder(folderPath, to: destination, fileManager: fileManager)
         return destination
+    }
+
+    /// The same film's folder in `root` under its title and year, where one
+    /// name has an id tag and the other doesn't ("Heat (1995)" and
+    /// "Heat (1995) {imdb-tt0113277}"). Two different ids are different films.
+    static func existingFilmFolder(named name: String, in root: String,
+                                   fileManager: FileManager = .default) -> String? {
+        let plain = MovieMatch.displayName(ofLibraryName: name)
+        let id = MovieMatch.idTag(inLibraryName: name)
+        let names = (try? fileManager.contentsOfDirectory(atPath: root)) ?? []
+        guard let match = names.first(where: { other in
+            other != name && MovieMatch.displayName(ofLibraryName: other) == plain
+                && (id == nil) != (MovieMatch.idTag(inLibraryName: other) == nil)
+        }) else { return nil }
+        let path = (root as NSString).appendingPathComponent(match)
+        return TitleRetitler.isMovieFolder(path, base: match, fileManager: fileManager) ? path : nil
     }
 
     static func standardized(_ path: String) -> String {
