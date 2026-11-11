@@ -168,27 +168,38 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidStartExtraction(jobId: UUID) {
-        extractingJobId = jobId
+        if !readingJobIds.contains(jobId) { readingJobIds.append(jobId) }
+        readProgress[jobId] = 0
         queueEncodePhase = false
-        progressIndicator.isHidden = false
-        progressIndicator.doubleValue = 0
-        progressStatusLabel.isHidden = false
-        progressStatusLabel.stringValue = "Reading disc..."
         totalRipSizeBytes = 0
+        showReadingProgress()
         // Keep the button live as a Cancel control so the user can stop a rip in
         // progress (queue-driven rips, i.e. all Blu-ray, had no cancel before).
         ripButton.isEnabled = true
         ripButton.title = "Cancel Rip"
         queueRipInProgress = true
-        setDiscStatus("Reading disc…")
+        setDiscStatus(readingJobIds.count > 1 ? "Reading \(readingJobIds.count) discs…" : "Reading disc…")
+    }
+
+    /// `jobId` no longer reads a disc. Returns true when another disc still is,
+    /// so the window keeps showing that read.
+    private func stopReading(_ jobId: UUID) -> Bool {
+        readingJobIds.removeAll { $0 == jobId }
+        readProgress[jobId] = nil
+        readSizes[jobId] = nil
+        guard !readingJobIds.isEmpty else { return false }
+        showReadingProgress()
+        setDiscStatus(readingJobIds.count > 1 ? "Reading \(readingJobIds.count) discs…" : "Reading disc…")
+        return true
     }
 
     func queueDidCompleteExtraction(jobId: UUID) {
         // The disc read (the cancellable part) is done; encoding is background and
-        // safe to eject. Clear the cancel state and reset the button label.
-        if extractingJobId == jobId { extractingJobId = nil }
+        // safe to eject. Clear the cancel state and reset the button label,
+        // unless the other drive is still reading.
+        appendToLog(logLine("Disc read complete — safe to eject. Encoding continues in background.", forJob: jobId))
+        if stopReading(jobId) { return }
         queueRipInProgress = false
-        appendToLog("Disc read complete — safe to eject. Encoding continues in background.")
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Disc read complete — encoding in background..."
         setDiscStatus("Encoding…")
@@ -197,11 +208,12 @@ extension MainViewController: ConversionQueueDelegate {
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
         dropTitleChoice(forJob: jobId)
-        if extractingJobId == jobId { extractingJobId = nil }
-        queueRipInProgress = false
-        appendToLog("Rip failed: \(error.localizedDescription)")
+        appendToLog(logLine("Rip failed: \(error.localizedDescription)", forJob: jobId))
         showErrorNotification("Ripping failed: \(error.localizedDescription)")
-        resetRipUI()
+        if !stopReading(jobId) {
+            queueRipInProgress = false
+            resetRipUI()
+        }
         if case MakeMKVBackend.MakeMKVError.registrationRequired(let detail) = error {
             presentMakeMKVRegistrationOptions(detail: detail)
         }
@@ -251,24 +263,25 @@ extension MainViewController: ConversionQueueDelegate {
     }
 
     func queueDidUpdateConversionStatus(jobId: UUID, status: String) {
-        // Reuses the ripper status handler: logs the line and captures total rip size.
-        mediaRipperDidUpdateStatus(status)
+        if let bytes = Self.discBytes(inStatus: status) { readSizes[jobId] = bytes }
+        appendToLog(logLine(status, forJob: jobId))
     }
 
     func queueDidUpdateConversionProgress(jobId: UUID, progress: Double) {
-        // While a disc is being read, show only its progress (not other jobs' encodes).
-        if let reading = extractingJobId, reading != jobId { return }
+        // While discs are being read, show only their progress (not other jobs' encodes).
+        if readingJobIds.contains(jobId) {
+            readProgress[jobId] = progress
+            showReadingProgress()
+            return
+        }
+        guard readingJobIds.isEmpty else { return }
         if progressIndicator.isHidden {
             progressIndicator.isHidden = false
             progressStatusLabel.isHidden = false
         }
-        if queueEncodePhase {
-            // Encode progress: a percentage of the title's runtime, not disc bytes
-            let pct = min(max(progress, 0), 1)
-            progressIndicator.doubleValue = pct * 100.0
-            progressStatusLabel.stringValue = phase2Label(forJob: jobId) + "... \(Int(pct * 100))%"
-        } else {
-            mediaRipperDidUpdateProgress(progress, currentItem: nil, totalItems: 0)
-        }
+        // Encode progress: a percentage of the title's runtime, not disc bytes
+        let pct = min(max(progress, 0), 1)
+        progressIndicator.doubleValue = pct * 100.0
+        progressStatusLabel.stringValue = phase2Label(forJob: jobId) + "... \(Int(pct * 100))%"
     }
 }

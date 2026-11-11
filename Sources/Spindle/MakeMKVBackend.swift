@@ -322,16 +322,31 @@ final class MakeMKVBackend {
         try FileManager.default.createDirectory(
             atPath: outputDirectory, withIntermediateDirectories: true)
 
-        // Enumerating drives (resolveDiscSpec) opens the physical drive in its own
-        // makemkvcon process. On UHD the drive needs a moment to release direct
-        // access before the rip re-opens it; without a gap the rip can catch the
-        // drive still busy and fall back to the weak "OS access mode", which fails
-        // ("Failed to open disc" / no output). Enumerate, let the drive settle,
-        // then rip.
-        let discSpec = try resolveDiscSpec(for: discPath, makemkvcon: exe)
-        onStatus("Opening disc (\(discSpec))...")
-        Thread.sleep(forTimeInterval: Self.driveSettleSeconds)
+        let opened = try openSpec(for: discPath, makemkvcon: exe)
+        onStatus("Opening disc (\(opened.spec))...")
+        func attempt(_ spec: String) throws -> [String] {
+            try ripRetryingAccessMode(exe: exe, discSpec: spec, outputDirectory: outputDirectory,
+                                      minLengthSeconds: minLengthSeconds, titleSpec: titleSpec,
+                                      onStatus: onStatus, onProgress: onProgress)
+        }
+        do {
+            return try attempt(opened.spec)
+        } catch let error as MakeMKVError where opened.byDevice && Self.isOpenFailure(error) && !cancelledFlag() {
+            // Opening by device didn't work. Wait for the disc read before this
+            // one to finish, then find the disc the usual way, if no other
+            // drive is still being read.
+            onStatus("Couldn't open the disc while the other drive is busy; waiting for it to finish...")
+            try waitForEarlierReads(than: discPath)
+            guard !DiscReads.shared.othersReading(than: discPath) else { throw error }
+            return try attempt(try DiscReads.shared.enumerating { try enumerateAndSettle(discPath, exe) })
+        }
+    }
 
+    /// One rip, retried once if the drive only opened in OS access mode.
+    private func ripRetryingAccessMode(exe: String, discSpec: String, outputDirectory: String,
+                                       minLengthSeconds: Int, titleSpec: String,
+                                       onStatus: @escaping (String) -> Void,
+                                       onProgress: @escaping (Double) -> Void) throws -> [String] {
         do {
             return try ripOnce(exe: exe, discSpec: discSpec,
                                outputDirectory: outputDirectory,
@@ -348,6 +363,51 @@ final class MakeMKVBackend {
                                outputDirectory: outputDirectory,
                                minLengthSeconds: minLengthSeconds, titleSpec: titleSpec,
                                onStatus: onStatus, onProgress: onProgress)
+        }
+    }
+
+    /// The spec to open the disc at `discPath` with. With no other disc being
+    /// read, makemkvcon enumerates the drives to find it, then the drive is
+    /// given a moment to settle: on UHD it needs to release direct access
+    /// before the rip re-opens it, or the rip can fall back to the weak "OS
+    /// access mode" and fail. Enumeration opens every drive, so while another
+    /// drive is being read the disc is opened by its device instead.
+    private func openSpec(for discPath: String, makemkvcon exe: String) throws -> (spec: String, byDevice: Bool) {
+        if discPath.hasPrefix("/dev/") { return ("dev:\(discPath)", true) }
+        if let spec = Self.deviceSpec(for: discPath) { return (spec, true) }
+        return try DiscReads.shared.enumerating {
+            // Another read may have begun while this waited for the lock.
+            if let spec = Self.deviceSpec(for: discPath) { return (spec, true) }
+            return (try enumerateAndSettle(discPath, exe), false)
+        }
+    }
+
+    /// `dev:/dev/rdiskN` for the disc at `discPath` while another disc is being
+    /// read; nil when it's the only one (or its device can't be found).
+    static func deviceSpec(for discPath: String, reads: DiscReads = .shared) -> String? {
+        guard reads.othersReading(than: discPath), let bsd = bsdName(forMountPoint: discPath) else { return nil }
+        return "dev:/dev/r\(bsd)"
+    }
+
+    private func enumerateAndSettle(_ discPath: String, _ exe: String) throws -> String {
+        let spec = try resolveDiscSpec(for: discPath, makemkvcon: exe)
+        Thread.sleep(forTimeInterval: Self.driveSettleSeconds)
+        return spec
+    }
+
+    /// Failures that can mean makemkvcon couldn't open the disc at all.
+    static func isOpenFailure(_ error: MakeMKVError) -> Bool {
+        switch error {
+        case .discOpenFailed, .noTitlesRipped, .ripFailed: return true
+        default: return false
+        }
+    }
+
+    /// Block until every disc read that began before this one has ended.
+    private func waitForEarlierReads(than discPath: String) throws {
+        while DiscReads.shared.earlierReading(than: discPath) {
+            if cancelledFlag() { throw MakeMKVError.cancelled }
+            Thread.sleep(forTimeInterval: 3)
         }
     }
 
@@ -551,8 +611,9 @@ final class MakeMKVBackend {
     /// NOTE: this opens the drive, so never call it while a rip is active — see
     /// the drive-contention notes on `rip`.
     func scanTitleDurations(for discPath: String) -> [Int] {
-        guard let exe = Self.executablePath() else { return [] }
-        let discSpec = (try? resolveDiscSpec(for: discPath, makemkvcon: exe)) ?? "disc:0"
+        guard let exe = Self.executablePath(),
+              let discSpec = (try? openSpec(for: discPath, makemkvcon: exe).spec) ?? soleDriveFallback(discPath)
+        else { return [] }
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: exe)
@@ -586,7 +647,9 @@ final class MakeMKVBackend {
                     onStatus: @escaping (String) -> Void = { _ in },
                     onProgress: @escaping (Double) -> Void = { _ in }) throws -> [Title] {
         guard let exe = Self.executablePath() else { throw MakeMKVError.notInstalled }
-        let discSpec = (try? resolveDiscSpec(for: discPath, makemkvcon: exe)) ?? "disc:0"
+        guard let discSpec = (try? openSpec(for: discPath, makemkvcon: exe).spec) ?? soleDriveFallback(discPath) else {
+            throw MakeMKVError.discOpenFailed("No MakeMKV drive matched \((discPath as NSString).lastPathComponent)")
+        }
 
         // Streamed, with progress: on discs with seamless branching MakeMKV
         // scans every VOBU ("complex multiplex"), which takes many minutes on a
@@ -782,6 +845,12 @@ final class MakeMKVBackend {
     /// volume name or device node, returning `disc:<index>`.
     ///
     /// DRV line format: DRV:index,visible,enabled,flags,"drive name","disc name","device path"
+    /// "disc:0" when no drive matched, but only while no other disc is being
+    /// read: with two drives it could be the other one.
+    private func soleDriveFallback(_ discPath: String) -> String? {
+        DiscReads.shared.othersReading(than: discPath) ? nil : "disc:0"
+    }
+
     private func resolveDiscSpec(for discPath: String, makemkvcon exe: String) throws -> String {
         // If we were handed a raw device node directly, use it.
         if discPath.hasPrefix("/dev/") {

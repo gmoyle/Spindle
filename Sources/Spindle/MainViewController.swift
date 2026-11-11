@@ -42,9 +42,18 @@ class MainViewController: NSViewController {
     /// True while a queue-driven rip (e.g. Blu-ray) is extracting, so the rip
     /// button acts as a Cancel control.
     internal var queueRipInProgress = false
-    /// Job currently reading a disc. The queue reads the next disc while earlier
-    /// jobs encode, so encode events from other jobs must not reset the rip UI.
-    internal var extractingJobId: UUID?
+    /// Jobs reading a disc, in the order they started: one per drive. The queue
+    /// reads the next disc while earlier jobs encode, so encode events from
+    /// other jobs must not reset the rip UI.
+    internal var readingJobIds: [UUID] = []
+    /// The first job still reading a disc, if any.
+    internal var extractingJobId: UUID? { readingJobIds.first }
+    /// Each reading job's progress (0…1) and disc size in bytes, when known.
+    internal var readProgress: [UUID: Double] = [:]
+    internal var readSizes: [UUID: Int64] = [:]
+    /// Each disc's lookup, by mount point, so a disc is ripped under its own
+    /// title when two drives hold discs.
+    internal var discLookups: [String: DiscLookup] = [:]
 
     // Drive Detection - internal for extension access
     internal var detectedDrives: [OpticalDrive] = []
@@ -290,14 +299,7 @@ class MainViewController: NSViewController {
     /// Cancel a queue-driven rip in progress (Blu-ray and any queued job). Cleanly
     /// terminates the active ripper — no orphaned makemkvcon — and resets the UI.
     @objc private func cancelQueueRip() {
-        appendToLog("Cancelling rip...")
-        if conversionQueue.cancelActiveJob() {
-            appendToLog("Rip cancelled.")
-        } else {
-            appendToLog("No active rip to cancel.")
-        }
-        queueRipInProgress = false
-        resetRipUI()
+        cancelReading()
     }
 
     @objc private func cancelRipping() {
@@ -584,8 +586,12 @@ class MainViewController: NSViewController {
     /// is handled by updateDriveDropdown).
     internal func setDiscStatus(_ status: String) {
         guard let drive = detectedDrives.first else { return }
+        if detectedDrives.count > 1 {
+            sourceLabel.stringValue = "\(detectedDrives.count) discs - \(status)"
+            return
+        }
         let driveTypeString = drive.type.displayName
-        let displayTitle = resolvedDiscTitle ?? drive.name
+        let displayTitle = discLookups[drive.mountPoint]?.title ?? resolvedDiscTitle ?? drive.name
         sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - \(status)"
     }
 
@@ -705,7 +711,9 @@ extension MainViewController: DriveDetectorDelegate {
             self.detectedDrives.append(drive)
             self.appendToLog("New disc detected: \(drive.displayName) (\(drive.type.displayName))")
             self.resolvedDiscTitle = nil
+            self.resolvedLibraryName = nil
             self.resolvedAlbum = nil
+            self.rememberLookup(for: drive)
             self.updateDriveDropdown()
             // Auto-rip only after the lookup resolves (or fails) so the rip is
             // named properly from the start: "Movie (Year)", or Artist / Album.
@@ -733,6 +741,7 @@ extension MainViewController: DriveDetectorDelegate {
                 self.lookupAlbum(forCDAt: drive.mountPoint) { album in
                     self.resolvedAlbum = album
                     self.resolvedDiscTitle = album?.displayName
+                    self.rememberLookup(for: drive)
                     self.updateDriveDropdown()
                     self.appendToLog(album.map { "CD identified: \($0.displayName)" }
                         ?? "CD not found on MusicBrainz; it will be ripped as Unknown Artist / Unknown Album.")
@@ -746,6 +755,7 @@ extension MainViewController: DriveDetectorDelegate {
             if DiscTitleQuery.isGenericLabel(rawLabel) {
                 let placeholder = DiscTitleQuery.placeholderName()
                 self.resolvedDiscTitle = placeholder
+                self.rememberLookup(for: drive)
                 self.updateDriveDropdown()
                 self.autoStartRipping(for: drive)
                 self.askWhichFilm(forGenericLabelDisc: drive, placeholder: placeholder)
@@ -755,6 +765,7 @@ extension MainViewController: DriveDetectorDelegate {
                 let title = resolution?.best.displayName
                 self.resolvedDiscTitle = title
                 self.resolvedLibraryName = resolution?.best.libraryName
+                self.rememberLookup(for: drive)
                 self.updateDriveDropdown()
                 if let t = title {
                     self.appendToLog(resolution?.isConfident == true ? "Disc identified: \(t)"
@@ -770,6 +781,7 @@ extension MainViewController: DriveDetectorDelegate {
         DispatchQueue.main.async {
             self.detectedDrives.removeAll { $0.mountPoint == drive.mountPoint }
             self.deferredEjects.remove(devicePath: drive.devicePath)
+            self.discLookups[drive.mountPoint] = nil
             self.resolvedDiscTitle = nil
             self.resolvedAlbum = nil
             self.appendToLog("Disc ejected: \(drive.displayName)")

@@ -154,13 +154,18 @@ class ConversionQueue {
 
     private var jobs: [ConversionJob] = []
     private let jobsQueue = DispatchQueue(label: "com.gmoyle.spindle.conversionQueue", attributes: .concurrent)
-    private let extractionQueue = DispatchQueue(label: "com.gmoyle.spindle.extraction", qos: .userInitiated)
+    /// Disc reads run here, one per drive at a time: two drives read two discs at once.
+    private let extractionQueue = DispatchQueue(label: "com.gmoyle.spindle.extraction", qos: .userInitiated,
+                                                attributes: .concurrent)
     /// Encodes run here, one job at a time, so the next disc can be read while
     /// the previous one encodes.
     private let encodingQueue = DispatchQueue(label: "com.gmoyle.spindle.encoding", qos: .utility)
     private let conversionQueue = DispatchQueue(label: "com.gmoyle.spindle.conversion", qos: .utility)
 
-    private var isProcessing = false  // true while a job is reading a disc
+    /// Source paths being read right now: one job per drive.
+    private var readingSources: Set<String> = []
+    /// Disc reads in progress, shared with the rippers (MakeMKV checks it).
+    private let discReads: DiscReads
     private var activeRippers: [UUID: MediaRipper] = [:]  // rippers of jobs still reading or encoding
 
     weak var delegate: ConversionQueueDelegate?
@@ -180,8 +185,9 @@ class ConversionQueue {
 
     // MARK: - Initialization
 
-    init(testMode: Bool = false) {
+    init(testMode: Bool = false, discReads: DiscReads = .shared) {
         self.testMode = testMode
+        self.discReads = discReads
         Logger.shared.logQueue("ConversionQueue initialized", level: .info)
     }
 
@@ -647,23 +653,33 @@ class ConversionQueue {
     // MARK: - Private Implementation
 
     private func processNextJob() {
-        // Barrier: the isProcessing check and the claim in startRipping must be
-        // atomic, or two near-simultaneous calls (two discs added) both start a job.
+        // Barrier: the check of which drives are free and the claim in
+        // startRipping must be atomic, or two near-simultaneous calls both
+        // start a job on the same drive.
         jobsQueue.async(flags: .barrier) {
-            guard !self.isProcessing else { return }
-
-            // Pick the highest-priority pending job (FIFO within priority)
-            let next = self.jobs.filter {
-                if case .pending = $0.status { return true }
-                return false
-            }.sorted { a, b in
-                a.priority != b.priority ? a.priority > b.priority : a.addedTime < b.addedTime
-            }.first
-
-            if let job = next {
-                self.startRipping(for: job.id)
+            for id in Self.jobsToStart(self.jobs, reading: self.readingSources) {
+                self.startRipping(for: id)
             }
         }
+    }
+
+    /// The pending jobs to start now: the highest-priority one (FIFO within
+    /// priority) for each source no job is reading, so each drive reads one
+    /// disc at a time and two drives read two at once.
+    static func jobsToStart(_ jobs: [ConversionJob], reading: Set<String>) -> [UUID] {
+        var busy = reading
+        var start: [UUID] = []
+        let pending = jobs.filter {
+            if case .pending = $0.status { return true }
+            return false
+        }.sorted { a, b in
+            a.priority != b.priority ? a.priority > b.priority : a.addedTime < b.addedTime
+        }
+        for job in pending where !busy.contains(job.sourcePath) {
+            busy.insert(job.sourcePath)
+            start.append(job.id)
+        }
+        return start
     }
 
     /// Must be called inside a jobsQueue barrier block (from processNextJob).
@@ -671,7 +687,8 @@ class ConversionQueue {
         guard let idx = jobs.firstIndex(where: { $0.id == jobId }) else { return }
         jobs[idx].status = .extracting
         jobs[idx].startTime = Date()
-        isProcessing = true
+        readingSources.insert(jobs[idx].sourcePath)
+        discReads.begin(jobs[idx].sourcePath)
         Logger.shared.logQueue("Starting rip for job \(jobId)", level: .info)
         let snapshot = jobs
         DispatchQueue.main.async {
@@ -679,6 +696,12 @@ class ConversionQueue {
             self.notifyDelegates { $0.queueDidStartExtraction(jobId: jobId) }
         }
         extractionQueue.async { self.performRip(for: jobId) }
+    }
+
+    /// Must be called inside a jobsQueue barrier block: the drive is free.
+    private func endReading(_ source: String) {
+        readingSources.remove(source)
+        discReads.end(source)
     }
 
     /// Final status for a job that ended in `error`: a user cancel stays
@@ -710,6 +733,8 @@ class ConversionQueue {
 
         let ripper = MediaRipper()
         jobsQueue.async(flags: .barrier) { self.activeRippers[jobId] = ripper }
+        // Don't open the drive while MakeMKV is enumerating drives for another read.
+        discReads.waitForEnumeration()
         let semaphore = DispatchSemaphore(value: 0)
         var ripError: Error?
 
@@ -735,7 +760,7 @@ class ConversionQueue {
                     self.jobs[idx].status = self.terminalStatus(forJobAt: idx, error: error)
                     self.jobs[idx].endTime = Date()
                 }
-                self.isProcessing = false
+                self.endReading(job.sourcePath)
                 self.activeRippers[jobId] = nil
                 Logger.shared.logError(error, context: "Rip failed for job \(jobId)")
                 let snapshot = self.jobs
@@ -763,7 +788,7 @@ class ConversionQueue {
                     self.ejectionDelegate?.queueShouldEjectDisc(sourcePath: sourcePath)
                 }
             }
-            self.isProcessing = false
+            self.endReading(sourcePath)
         }
         processNextJob()
 

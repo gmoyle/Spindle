@@ -57,19 +57,23 @@ swiftlint lint
    (c) a legacy `rip_complete.json` exists. Holding ⌥ on insert forces a re-rip.
 3. **Queue**: every rip goes through `ConversionQueue.addJob`. The `jobs` array is guarded by a
    *concurrent* `jobsQueue` (reads `sync`, writes `async(flags: .barrier)`, including any
-   check-then-set of `isProcessing`). Each job makes a fresh `MediaRipper` (tracked in
+   check-then-set of `readingSources`). Each job makes a fresh `MediaRipper` (tracked in
    `activeRippers[jobId]`), connected through `QueueRipperDelegate` plus a `DispatchSemaphore`.
    The bridge only accepts the first `mediaRipperDidComplete` or `mediaRipperDidFail`, and
    `MediaRipper` reports failure exactly once, after retries (`withRetries`).
-   - Phase 1 `.extracting` runs on the serial `extractionQueue` and ends when the disc is no
-     longer needed. The queue then asks for an eject (`ConversionQueueEjectionDelegate`),
-     clears `isProcessing`, and starts the next job's disc read.
+   - Phase 1 `.extracting` runs on the concurrent `extractionQueue`, one job per source
+     (`readingSources`, `jobsToStart`), so two drives read two discs at once. It ends when the
+     disc is no longer needed. The queue then asks for an eject
+     (`ConversionQueueEjectionDelegate`), frees the source, and starts that drive's next job.
+     Each `MediaRipper` stages in its own `encoding/rip-<uuid>/` folder, so two editions of
+     one film read at once never collide.
    - Phase 2 `.converting` runs on the serial `encodingQueue` (`performEncodes`). It runs
      `MediaRipper.pendingEncodes` one at a time and moves each finished file from staging to
      the output dir; MakeMKV's files come in through `directOutputFiles`. Then
      `writeRipCompleteMarker` updates the registry and the breadcrumb. Phase 2 of one job
-     overlaps phase 1 of the next, so UI handlers check `MainViewController.extractingJobId`
-     before resetting the rip UI.
+     overlaps phase 1 of the next, so UI handlers check `MainViewController.readingJobIds`
+     (`extractingJobId` is its first) before resetting the rip UI. Each disc's title lookup
+     is kept per mount point (`discLookups`); `ripConfiguration(for:mountPoint:)` recalls it.
 4. **Per-format rippers** (`MediaRipper` + `MediaRipper+*.swift`; `performRipping` switches on
    media type):
    - **DVD**: `DVDStructureParser` (IFO) → `DVDDecryptor` (libdvdcss on the raw `/dev/rdiskN`).
@@ -141,7 +145,11 @@ swiftlint lint
   from drive contention (makemkvcon falls back to "OS access mode"), not from licensing. Never
   run `makemkvcon info` or any other drive scan while a rip is active. `MakeMKVBackend.rip`
   sleeps between enumeration and the rip, and retries once on an OS-access-mode open. macOS DVD
-  Player auto-launching on insert also steals the device.
+  Player auto-launching on insert also steals the device. With two drives, enumeration
+  (`info disc:9999`) opens *every* drive, so `DiscReads` tracks the reads in progress: while
+  another drive is being read, MakeMKV opens its disc by device (`dev:/dev/rdiskN`) instead,
+  and a read starting during an enumeration waits for it. If `dev:` fails, the later read
+  waits for the earlier one and enumerates.
 - **Release the device before ejecting.** `dvdDecryptor.closeDevice()` must run before the eject
   request, or the eject fails as busy.
 - **Settings window tabs**: `NSTabViewItem.view` must be the scroll view itself. Wrapping it in
