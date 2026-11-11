@@ -92,7 +92,7 @@ final class TitleChooserWindowController: NSWindowController {
         // takes the film picked in the list. No default button: Return in the
         // search box searches.
         let keep = NSButton(title: keepTitle, target: self, action: #selector(keepGuess))
-        if intro == nil { keep.toolTip = "Keep \(choice.guessedDisplayName), the name the disc is ripping under" }
+        if self.intro == nil { keep.toolTip = "Keep \(choice.guessedDisplayName), the name the disc is ripping under" }
         let use = NSButton(title: "Use Selected", target: self, action: #selector(useSelection))
         let buttons = NSStackView(views: [keep, use])
         buttons.spacing = 8
