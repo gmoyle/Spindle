@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🎬 Film titles
 - **Labels without apostrophes are found**: `OCEANS_ELEVEN_2001` is also searched as "Ocean's Eleven", and `MATRIX_THE` as "The Matrix". Titles are compared without punctuation.
 - **The year on a label picks the film**: `OCEANS_ELEVEN_2001` is the 2001 film, not the 1960 original.
+- **Naming rips in Review Rips**: each rip has a **Name…** button that searches for the film (or takes a typed name) and renames the rip's folder and files to it, with its id, before you file it. Labels that are only a catalog number (`23604`) now count as not naming the film, so the "Which film is this?" window opens for them. Its buttons are now **Use Guess** and **Use Selected**.
 - **Which film is this?** When a lookup isn't sure, the disc rips under the best guess and a window lists the matches, with posters. Your pick renames the rip's folder and files, now or when the rip finishes. Nothing waits for an answer.
 - **Search or type the name**: the window has a search box for films that weren't offered, and **Use Typed Name** for anything the databases don't know.
 - **Generic labels** (`DVD_VIDEO`, `VIDEO_TS`…) aren't looked up any more, since that only found unrelated titles (a lighting tutorial for *Something's Gotta Give*). Such a disc rips as `Untitled Disc <date time>` and the window asks for its name.

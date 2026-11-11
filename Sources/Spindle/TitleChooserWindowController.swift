@@ -19,12 +19,23 @@ final class TitleChooserWindowController: NSWindowController {
     private let statusLabel = NSTextField(labelWithString: "")
     private var radios: [NSButton] = []
     private var names: [String] = []
+    /// Replaces the usual explanation (naming a finished rip in Review Rips).
+    private let intro: String?
+    /// The button that keeps the current name.
+    private let keepTitle: String
 
     /// - Parameter discOwnName: the label as a film name, offered as a choice
     ///   (nil for a generic label, which isn't worth offering).
-    init(choice: TitleChoice, discOwnName: String?) {
+    /// - Parameters:
+    ///   - intro: text to show instead of the usual explanation.
+    ///   - keepTitle: the title of the button that keeps the current name.
+    ///   - searchText: a search to run straight away.
+    init(choice: TitleChoice, discOwnName: String?, intro: String? = nil, keepTitle: String = "Use Guess",
+         searchText: String? = nil) {
         self.choice = choice
         self.discOwnName = discOwnName
+        self.intro = intro
+        self.keepTitle = keepTitle
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Which film is this?"
@@ -33,6 +44,10 @@ final class TitleChooserWindowController: NSWindowController {
         buildContent()
         showMatches(choice.choices)
         window.center()
+        if let text = searchText, !text.isEmpty {
+            searchField.stringValue = text
+            search()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -73,9 +88,12 @@ final class TitleChooserWindowController: NSWindowController {
         listStack.spacing = 8
         stack.addArrangedSubview(listStack)
 
-        let keep = NSButton(title: "Keep \(choice.guessedDisplayName)", target: self, action: #selector(keepGuess))
-        // No default button: Return in the search box searches.
-        let use = NSButton(title: "Use This Film", target: self, action: #selector(useSelection))
+        // "Use Guess" keeps the name the disc is ripping under; "Use Selected"
+        // takes the film picked in the list. No default button: Return in the
+        // search box searches.
+        let keep = NSButton(title: keepTitle, target: self, action: #selector(keepGuess))
+        if intro == nil { keep.toolTip = "Keep \(choice.guessedDisplayName), the name the disc is ripping under" }
+        let use = NSButton(title: "Use Selected", target: self, action: #selector(useSelection))
         let buttons = NSStackView(views: [keep, use])
         buttons.spacing = 8
         stack.addArrangedSubview(buttons)
@@ -94,6 +112,7 @@ final class TitleChooserWindowController: NSWindowController {
     }
 
     private var introText: String {
+        if let intro = intro { return intro }
         if choice.labelIsGeneric {
             return "The disc's label (\(choice.discName)) doesn't say which film it is, so Spindle is ripping "
                 + "it as \(choice.guessedDisplayName). Search for the film, or type its name, and the files are "
@@ -117,7 +136,7 @@ final class TitleChooserWindowController: NSWindowController {
                                              label: match.displayName))
         }
         if let own = discOwnName, !names.contains(own) {
-            listStack.addArrangedSubview(row(title: own, poster: nil, label: "Keep the disc's name: \(own)"))
+            listStack.addArrangedSubview(row(title: own, poster: nil, label: "The disc's own name: \(own)"))
         }
         radios.first?.state = .on
         if let window = window, let content = window.contentView {

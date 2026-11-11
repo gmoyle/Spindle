@@ -86,9 +86,9 @@ Eleven", and a year on the label picks between a film and its remake.
 **Which film is this?** When the lookup isn't sure (nothing has the label's exact
 title, or two films share it and the label has no year), the disc starts ripping
 anyway under the best guess, and a window lists the matches with their posters,
-plus the disc's own name. Pick one and the rip's folder and files are renamed:
-straight away if the rip has finished, or when it does. Ignore the window and the
-best guess stays. TV season discs aren't asked; their episodes are named from the
+plus the disc's own name. Pick one and click **Use Selected**, and the rip's folder
+and files are renamed: straight away if the rip has finished, or when it does.
+**Use Guess** (or ignoring the window) keeps the best guess. TV season discs aren't asked; their episodes are named from the
 series instead.
 
 If the right film isn't listed, type its name in the window's search box and press
@@ -96,8 +96,8 @@ Return to search again, or click **Use Typed Name** to name it exactly as typed.
 year at the end becomes `(Year)`: "Something's Gotta Give 2003" names it
 `Something's Gotta Give (2003)`.
 
-Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS` or similar, which says nothing
-about the film. Spindle doesn't look those up (it would only find unrelated
+Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS`, a catalog number such as
+`23604`, or similar, which says nothing about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
 search box ready, so you can name it.
 
@@ -150,7 +150,10 @@ by its title lengths:
 - several titles of similar length → **TV season**, with each episode named and
   filed in the TV Shows folder (see [TV series](#tv-series));
 - unclear → waits under **Review Rips**, pre-set to the app's guess, for you to
-  confirm or switch. **Accept All Guesses** routes everything waiting.
+  confirm or switch. **Accept All Guesses** routes everything waiting. A rip
+  Spindle couldn't identify (listed under its disc label) has a **Name…** button:
+  search for the film, or type its name, and the rip's folder and files are
+  renamed to it, with its IMDb id, before you file it as a Movie.
 
 Ripping never waits on a routing decision, and the review queue survives restarts.
 
@@ -333,7 +336,8 @@ by the disc type: recordable discs are home videos, pressed discs are films. Mov
 the files where they belong.
 
 **A movie ends up under Review Rips.** The app couldn't tell from the title lengths
-whether it's a movie or a TV season. Pick one there.
+whether it's a movie or a TV season. Pick one there. If it's listed under a disc
+label or a number instead of the film's name, click **Name…** first.
 
 **A disc didn't eject, or a new disc wasn't noticed, while the Mac was locked.**
 macOS doesn't allow discs to be mounted or ejected while the Mac is locked. A disc
