@@ -23,6 +23,8 @@ extension MainViewController {
     /// Movies or TV Shows afterwards.
     func ripConfiguration(for mediaType: MediaRipper.MediaType,
                           mountPoint: String? = nil) -> MediaRipper.RippingConfiguration {
+        // Build for this disc's own lookup, not the other drive's.
+        if let mountPoint = mountPoint { recallLookup(forDiscAt: mountPoint) }
         let homeVideo = homeVideoInfo(for: mediaType, mountPoint: mountPoint)
         return MediaRipper.RippingConfiguration(
             outputDirectory: outputDirectory(for: mediaType, homeVideo: homeVideo),

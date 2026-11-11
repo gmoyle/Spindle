@@ -41,6 +41,12 @@ With the default settings you only insert discs:
 The Mac won't idle-sleep while a job is running, because sleep cuts power to USB
 drives in the middle of a read.
 
+**Two drives**: with a second drive connected, both discs are read at the same
+time, each into its own place in the cache, and each ejects when it's done. Each
+drive reads one disc at a time. Encodes still run one after another. While two
+discs are reading, the progress line shows both ("Heat 41% · Aliens 12%"), the
+log names the disc each line is about, and **Cancel Rip** asks which disc to stop.
+
 ## Main window
 
 - **Source**: the drive dropdown lists optical drives (**Refresh** rescans);

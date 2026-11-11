@@ -159,11 +159,20 @@ class MediaRipper {
     /// directly into the output directory corrupts rips when that directory is
     /// synced (iCloud restores stale versions of files it saw mid-write); the
     /// finished file is moved into place atomically on success.
+    /// Each rip stages in its own folder, so two discs read at once (two
+    /// editions of one film, in two drives) never share a file name.
     func encodingStagingPath(for outputPath: String) -> String {
-        let stagingDir = AppIdentity.cachesDirectory.appendingPathComponent("encoding").path
-        try? FileManager.default.createDirectory(atPath: stagingDir, withIntermediateDirectories: true)
-        return stagingDir.appending("/\((outputPath as NSString).lastPathComponent)")
+        try? FileManager.default.createDirectory(atPath: stagingFolder, withIntermediateDirectories: true)
+        return stagingFolder.appending("/\((outputPath as NSString).lastPathComponent)")
     }
+
+    /// This rip's staging folder; removed with the rip's other staging.
+    private(set) lazy var stagingFolder: String = {
+        let path = AppIdentity.cachesDirectory
+            .appendingPathComponent("encoding/rip-\(UUID().uuidString)").path
+        stagingDirectoriesToRemove.append(path)
+        return path
+    }()
 
     // Ripping configuration
     struct RippingConfiguration {
