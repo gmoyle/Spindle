@@ -49,7 +49,10 @@ swiftlint lint
    (cddafs AIFF tracks, `.TOC.plist`) on any volume, photo/data discs only when `diskutil` says
    the volume is optical. Only `.unknown` is left in the drive. A `.dvd` whose diskutil
    `OpticalMediaType` is recordable is a home video (`HomeVideoDetector`, decided in
-   `MainViewController.ripConfiguration`). Under XCTest `startMonitoring` does nothing, so tests never
+   `MainViewController.ripConfiguration`). So is a pressed `.dvd` with no CSS and region
+   mask 0 whose label finds no film (`HomeMadeDiscCheck`, checked at insert under the
+   `DiscReads` enumeration lock), or one the user marks; those mounts are kept in
+   `homeVideoMounts`. `HomeVideoFiler` moves a finished film rip into Home Videos. Under XCTest `startMonitoring` does nothing, so tests never
    see, eject or rip a real disc.
 2. **Skip check**: `MainViewController.findCompletedRip` treats a disc as already ripped if
    (a) `PendingRoutingQueue` holds it, (b) `RipHistoryStore` has an entry whose `DiscIdentity`

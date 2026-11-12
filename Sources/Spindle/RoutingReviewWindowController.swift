@@ -11,6 +11,8 @@ final class RoutingReviewWindowController: NSWindowController {
     private var items: [PendingRouting] = []
     /// Per-item chosen type (defaults to the guess), keyed by pending id.
     private var choices: [UUID: ContentType] = [:]
+    /// Rows to file as home videos instead (Route as: Home Video).
+    private var homeVideoRows: Set<UUID> = []
 
     private var tableView: NSTableView!
     private var statusLabel: NSTextField!
@@ -27,7 +29,7 @@ final class RoutingReviewWindowController: NSWindowController {
 
     convenience init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 420),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false)
         window.title = "Review Rips — Movie or TV Show"
@@ -147,7 +149,7 @@ final class RoutingReviewWindowController: NSWindowController {
 
         let choiceCol = NSTableColumn(identifier: .init("choice"))
         choiceCol.title = "Route as"
-        choiceCol.width = 170
+        choiceCol.width = 250
         columns.append(choiceCol)
         return columns
     }
@@ -169,7 +171,7 @@ final class RoutingReviewWindowController: NSWindowController {
         let n = items.count
         statusLabel.stringValue = n == 0
             ? "No rips awaiting routing. New rips will appear here."
-            : "\(n) rip\(n == 1 ? "" : "s") to file. Choose Movie or TV Show for each, then Apply. "
+            : "\(n) rip\(n == 1 ? "" : "s") to file. Choose Movie, TV Show or Home Video for each, then Apply. "
                 + "Name… names a rip Spindle couldn't identify."
     }
 
@@ -182,6 +184,7 @@ final class RoutingReviewWindowController: NSWindowController {
         for item in items {
             choices[item.id] = item.guessedType == .unknown ? .movie : item.guessedType
         }
+        homeVideoRows.removeAll()
         tableView.reloadData()
         applyChoices()
     }
@@ -192,6 +195,8 @@ final class RoutingReviewWindowController: NSWindowController {
         // the window's controls locked until every choice is applied.
         guard !isApplying, !items.isEmpty else { return }
         let decisions = items.map { ($0, choices[$0.id] ?? .movie) }
+        let homeVideos = homeVideoRows
+        let homeRoot = SettingsManager.shared.libraryRoot(.homeVideos)
         setApplying(true)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             var moved = 0
@@ -202,7 +207,14 @@ final class RoutingReviewWindowController: NSWindowController {
                     : "Moving \(item.discName) (\(index + 1) of \(decisions.count))…"
                 DispatchQueue.main.async { self?.showProgress(progress) }
                 do {
-                    let status = try ContentRouter.applyReviewChoice(item, as: type)
+                    let status: String
+                    if homeVideos.contains(item.id) {
+                        let info = HomeVideoFiler.info(forRipIn: item.folderPath, label: item.discName)
+                        let destination = try HomeVideoFiler.file(folder: item.folderPath, as: info, into: homeRoot)
+                        status = "Filed \(item.discName) in Home Videos: \(destination)"
+                    } else {
+                        status = try ContentRouter.applyReviewChoice(item, as: type)
+                    }
                     Logger.shared.log(status, level: .info, category: .general)
                     self?.queue.remove(id: item.id)
                     moved += 1
@@ -239,6 +251,7 @@ final class RoutingReviewWindowController: NSWindowController {
     private func finishApplying(moved: Int, failures: [String]) {
         setApplying(false)
         for id in choices.keys where !queue.items.contains(where: { $0.id == id }) { choices[id] = nil }
+        homeVideoRows = homeVideoRows.filter { id in queue.items.contains { $0.id == id } }
         reload()
         tableView.reloadData()
         updateStatus()
@@ -258,7 +271,13 @@ final class RoutingReviewWindowController: NSWindowController {
     @objc private func choiceChanged(_ sender: NSSegmentedControl) {
         let row = sender.tag
         guard row >= 0, row < items.count else { return }
-        choices[items[row].id] = sender.selectedSegment == 0 ? .movie : .tvShow
+        let id = items[row].id
+        if sender.selectedSegment == 2 {
+            homeVideoRows.insert(id)
+        } else {
+            homeVideoRows.remove(id)
+            choices[id] = sender.selectedSegment == 0 ? .movie : .tvShow
+        }
     }
 }
 
@@ -293,11 +312,11 @@ extension RoutingReviewWindowController: NSTableViewDataSource, NSTableViewDeleg
                 ? .labelColor : .secondaryLabelColor
             return label
         case "choice":
-            let seg = NSSegmentedControl(labels: ["Movie", "TV Show"],
+            let seg = NSSegmentedControl(labels: ["Movie", "TV Show", "Home Video"],
                                          trackingMode: .selectOne,
                                          target: self, action: #selector(choiceChanged(_:)))
             seg.tag = row
-            seg.selectedSegment = (choices[item.id] ?? .movie) == .movie ? 0 : 1
+            seg.selectedSegment = homeVideoRows.contains(item.id) ? 2 : (choices[item.id] ?? .movie) == .movie ? 0 : 1
             seg.isEnabled = !isApplying
             return seg
         default:
