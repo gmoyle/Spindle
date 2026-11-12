@@ -762,17 +762,24 @@ extension MainViewController: DriveDetectorDelegate {
                 return
             }
             self.lookupDiscTitle(volumeName: drive.name) { resolution in
-                let title = resolution?.best.displayName
+                // Nothing found for a film's label: rip under the label as a film
+                // name and ask. A TV disc keeps its label ("FIREFLY_D1"), so its
+                // discs don't share a folder.
+                let unfoundName = Self.unfoundRipName(forLabel: drive.name)
+                let title = resolution?.best.displayName ?? unfoundName
                 self.resolvedDiscTitle = title
                 self.resolvedLibraryName = resolution?.best.libraryName
                 self.rememberLookup(for: drive)
                 self.updateDriveDropdown()
-                if let t = title {
-                    self.appendToLog(resolution?.isConfident == true ? "Disc identified: \(t)"
-                                     : "Disc might be \(t) (not sure)")
+                if let resolution = resolution, let t = title {
+                    self.appendToLog(resolution.isConfident ? "Disc identified: \(t)" : "Disc might be \(t) (not sure)")
                 }
                 self.autoStartRipping(for: drive)
-                if let resolution = resolution { self.askWhichFilm(for: drive, resolution: resolution) }
+                if let resolution = resolution {
+                    self.askWhichFilm(for: drive, resolution: resolution)
+                } else if let name = unfoundName {
+                    self.askWhichFilm(forUnfoundDisc: drive, ripName: name)
+                }
             }
         }
     }

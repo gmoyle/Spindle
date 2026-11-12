@@ -71,23 +71,65 @@ enum DiscTitleQuery {
         "scn", "screener", "promo", "disc", "disc1", "disc2", "d1", "d2",
         "ws", "fs", "se", "ce", "r1", "r2", "r4", "ntsc", "pal", "dvd",
         "bluray", "bd", "video", "widescreen", "fullscreen", "extended",
-        "unrated", "theatrical", "special", "edition", "collectors", "anamorphic"
+        "unrated", "theatrical", "special", "edition", "collectors", "anamorphic",
+        "wide", "lb", "letterbox", "letterboxed", "domestic"
     ]
 
-    /// Search terms to try in order: the label without junk tokens and numbers;
-    /// then spellings a label can't hold (labels have no apostrophes, and some
-    /// put "THE" last): "OCEANS ELEVEN" → "OCEAN'S ELEVEN", "MATRIX THE" → "THE
-    /// MATRIX"; then the whole label if that differs.
+    /// Region words a label can end with ("THE_MATRIX_16X9LB_N_AMERICA",
+    /// "ERASER_16X9_NA"), dropped only from the end and only if a title is left.
+    static let regionTails: [[String]] = [["n", "america"], ["north", "america"], ["na"], ["usa"], ["uk"]]
+
+    /// "16X9", "4X3", "16X9LB": the picture shape, not the title.
+    static func isAspectRatio(_ word: String) -> Bool {
+        word.range(of: #"^\d{1,2}x\d{1,2}(lb)?$"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// The label's title words: edition, junk, aspect ratio and region taken
+    /// out, a number stuck to a word split off ("PIE2" → "PIE 2"), and numbers
+    /// dropped except a sequel's ("AMERICAN_PIE_2" keeps its 2; "DIEHARD1" and
+    /// years don't).
+    static func titleWords(fromVolumeName volumeName: String) -> [String] {
+        // A number is a sequel's only straight after a title word ("PIE 2"),
+        // not after a dropped word ("DISC 2") or at the start.
+        var words: [(word: String, sequelPosition: Bool)] = []
+        var afterTitleWord = false
+        for word in MovieEdition.split(volumeName: volumeName).titleWords {
+            guard !volumeLabelJunk.contains(word.lowercased()), !isAspectRatio(word) else {
+                afterTitleWord = false
+                continue
+            }
+            if word.range(of: #"^[A-Za-z]{2,}[0-9]$"#, options: .regularExpression) != nil {
+                words.append((String(word.dropLast()), afterTitleWord))
+                words.append((String(word.suffix(1)), true))
+            } else {
+                words.append((word, afterTitleWord))
+            }
+            afterTitleWord = Int(word) == nil
+        }
+        while let tail = regionTails.first(where: { tail in
+            words.count > tail.count && words.suffix(tail.count).map { $0.word.lowercased() } == tail
+        }) {
+            words.removeLast(tail.count)
+        }
+        return words.filter { word, sequelPosition in
+            guard let number = Int(word) else { return true }
+            return sequelPosition && (2...9).contains(number)
+        }.map(\.word)
+    }
+
+    /// Search terms to try in order: the label's title words; then spellings a
+    /// label can't hold (labels have no apostrophes, and some put "THE" last):
+    /// "OCEANS ELEVEN" → "OCEAN'S ELEVEN", "MATRIX THE" → "THE MATRIX"; then,
+    /// for a long label that may have been cut short, without its last word
+    /// ("BILL_AND_TEDS_EXCELLENT_ADVEN"); then the whole label if that differs.
     static func candidates(fromVolumeName volumeName: String) -> [String] {
         let words = volumeName
             .replacingOccurrences(of: "_", with: " ")
             .split(separator: " ").map(String.init)
         // "ARMY_OF_DARKNESS_DIRECTORS_CUT" searches for "ARMY OF DARKNESS".
-        let titleWords = MovieEdition.split(volumeName: volumeName).titleWords
-        let cleanedWords = titleWords.filter { !volumeLabelJunk.contains($0.lowercased()) && Int($0) == nil }
+        let cleanedWords = titleWords(fromVolumeName: volumeName)
 
         let raw = words.joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        let cleaned = cleanedWords.joined(separator: " ").trimmingCharacters(in: .whitespaces)
 
         var candidates: [String] = []
         func add(_ candidate: String) {
@@ -95,11 +137,45 @@ enum DiscTitleQuery {
                   !candidates.contains(where: { $0.caseInsensitiveCompare(candidate) == .orderedSame }) else { return }
             candidates.append(candidate)
         }
-        add(cleaned)
+        // "MI 3" → "MISSION IMPOSSIBLE 3": tried first, the short form finds
+        // unrelated films. Each sequel number also as a Roman numeral, since the
+        // databases name sequels both ways ("American Pie 2", "Mission: Impossible III").
+        let expanded = expandedAbbreviation(cleanedWords)
+        for form in [expanded, cleanedWords].compactMap({ $0 }) {
+            add(form.joined(separator: " "))
+            if let roman = romanSequel(form) { add(roman.joined(separator: " ")) }
+        }
         for variant in spellingVariants(of: cleanedWords) { add(variant) }
+        if volumeName.count >= truncatedLabelLength, cleanedWords.count >= 3 {
+            let shortened = Array(cleanedWords.dropLast())
+            add(shortened.joined(separator: " "))
+            for variant in spellingVariants(of: shortened) { add(variant) }
+        }
         add(raw)
         return candidates
     }
+
+    /// Series that discs label by initials, only when a sequel number follows
+    /// ("MI2", "MI3_DOMESTIC_D1_WS").
+    static let seriesAbbreviations: [String: [String]] = ["mi": ["MISSION", "IMPOSSIBLE"]]
+
+    private static func expandedAbbreviation(_ words: [String]) -> [String]? {
+        guard words.count == 2, let full = seriesAbbreviations[words[0].lowercased()],
+              Int(words[1]) != nil else { return nil }
+        return full + [words[1]]
+    }
+
+    private static let romanNumerals = [2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII", 9: "IX"]
+
+    private static func romanSequel(_ words: [String]) -> [String]? {
+        guard words.count >= 2, let number = words.last.flatMap({ Int($0) }),
+              let roman = romanNumerals[number] else { return nil }
+        return words.dropLast() + [roman]
+    }
+
+    /// Labels this long may have been cut off mid-word: disc labels hold 32
+    /// characters at most, and authoring tools often stop sooner.
+    static let truncatedLabelLength = 24
 
     /// At most a few, so a long label doesn't send a dozen lookups.
     static let maxSpellingVariants = 3
@@ -145,7 +221,12 @@ enum DiscTitleQuery {
     /// More labels authoring tools leave on pressed discs.
     static let genericLabels: Set<String> = [
         "DVD_VIDEO_DISC", "DVDVOLUME", "DVD_VOLUME", "VOLUME", "VOLUME_1", "BDROM", "BD_ROM", "BLURAY",
-        "BLU-RAY", "BD", "BDMV", "DISC1", "DISC_1", "MOVIE", "FEATURE", "MAIN", "TITLE", "CDROM"
+        "BLU-RAY", "BD", "BDMV", "DISC1", "DISC_1", "MOVIE", "FEATURE", "MAIN", "TITLE", "CDROM",
+        // Left unset by the authoring tool.
+        "UNDEFINED", "UNTITLED", "NO_NAME", "NONAME", "NO_LABEL", "LABEL", "NEW_VOLUME",
+        // The studio or maker, not the film.
+        "SONY", "SONY_PICTURES", "COLUMBIA", "WARNER", "WARNER_BROS", "UNIVERSAL", "PARAMOUNT", "FOX",
+        "DISNEY", "MGM", "LIONSGATE", "DREAMWORKS", "MIRAMAX", "NEW_LINE", "PIXAR"
     ]
 
     /// What a disc with a generic label is called until someone names it:
@@ -191,6 +272,29 @@ enum DiscTitleQuery {
 
     static let maxChoices = 8
 
+    /// Search each candidate in turn and stop at the first that finds exactly
+    /// one film of that title; else answer with the first unsure match (the
+    /// short "MI 3" finds unrelated films, "MISSION IMPOSSIBLE III" the one).
+    /// Calls back on an arbitrary queue; nil when nothing was found.
+    static func lookUp(candidates: [String], year: String?, provider: MovieMetadataProvider,
+                       unsure: Resolution? = nil, onSearch: ((String) -> Void)? = nil,
+                       completion: @escaping (Resolution?) -> Void) {
+        guard let query = candidates.first else {
+            completion(unsure)
+            return
+        }
+        onSearch?(query)
+        provider.searchMovies(query: query) { matches in
+            let resolution = resolve(query: query, matches: matches, year: year)
+            if let resolution = resolution, resolution.isConfident {
+                completion(resolution)
+                return
+            }
+            lookUp(candidates: Array(candidates.dropFirst()), year: year, provider: provider,
+                   unsure: unsure ?? resolution, onSearch: onSearch, completion: completion)
+        }
+    }
+
     static func resolve(query: String, matches: [MovieMatch], year: String? = nil) -> Resolution? {
         guard let best = bestMatch(for: query, in: matches, year: year) else { return nil }
         let wanted = normalized(query)
@@ -202,13 +306,17 @@ enum DiscTitleQuery {
         return Resolution(best: best, choices: choices, isConfident: confident)
     }
 
-    /// Lowercased, apostrophes dropped, "&" as "and", other punctuation as spaces.
+    /// Lowercased, apostrophes dropped, "&" as "and", other punctuation as
+    /// spaces, and a leading "the" dropped: labels often leave it out
+    /// ("LONG_KISS_GOODNIGHT" is "The Long Kiss Goodnight").
     static func normalized(_ title: String) -> String {
         let lowered = title.lowercased()
             .replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\u{2019}", with: "")
             .replacingOccurrences(of: "&", with: " and ")
-        return lowered.map { $0.isLetter || $0.isNumber ? String($0) : " " }.joined()
-            .split(separator: " ").joined(separator: " ")
+        var words = lowered.map { $0.isLetter || $0.isNumber ? String($0) : " " }.joined()
+            .split(separator: " ")
+        if words.count > 1, words.first == "the" { words.removeFirst() }
+        return words.joined(separator: " ")
     }
 }
 
