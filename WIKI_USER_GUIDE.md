@@ -288,6 +288,15 @@ the label if it's a date, otherwise the disc's creation date) and its label:
 on the disc gets its own file, numbered ` - 01`, ` - 02`. A burned copy of a film is
 treated as a home video too; move it if so.
 
+Some home-made discs report as pressed (DVD-ROM): school and event videos from a
+duplication service, or discs burned that way. Films are copy-protected and
+region-locked, and these discs are neither, so a pressed DVD with no copy protection
+and no region lock whose label names no film is imported as a home video too. If one
+is still taken for a film, click **It's a Home Video** in the "Which film is this?"
+window: while the disc is still being read it's ripped again with every recording,
+otherwise the finished rip is moved into Home Videos. A rip waiting in Review Rips
+can be filed with **Home Video** under "Route as".
+
 **Other data discs** are copied as they are into
 `Imported Discs/<disc name>/`, keeping their folders. Each file is checked against
 the disc; any that can't be read (a scratched disc) are listed in
@@ -340,8 +349,10 @@ Spindle in System Settings → Privacy & Security → Photos; until then, photos
 filed in the Photos folder.
 
 **A home DVD was looked up as a film, or a film went to Home Videos.** Spindle goes
-by the disc type: recordable discs are home videos, pressed discs are films. Move
-the files where they belong.
+by the disc type: recordable discs are home videos; pressed discs are films unless
+they have no copy protection or region lock and their label names no film. Use
+**It's a Home Video** in the "Which film is this?" window, or **Home Video** in Review
+Rips; otherwise move the files where they belong.
 
 **A movie ends up under Review Rips.** The app couldn't tell from the title lengths
 whether it's a movie or a TV season. Pick one there. If it's listed under a disc
