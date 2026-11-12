@@ -107,6 +107,24 @@ final class PendingRoutingQueue {
         notifyChanged()
     }
 
+    /// A rip waiting here was renamed (named by hand, or its film chosen):
+    /// point its entry at the folder's new place.
+    func updateFolder(from oldPath: String, to newPath: String) {
+        lock.lock()
+        var all = load()
+        var changed = false
+        for (index, item) in all.enumerated() where item.folderPath == oldPath {
+            all[index] = PendingRouting(id: item.id, discName: item.discName, discIdentity: item.discIdentity,
+                                        folderPath: newPath, guessedType: item.guessedType,
+                                        confidence: item.confidence, createdAt: item.createdAt,
+                                        rippedTitles: item.rippedTitles, note: item.note)
+            changed = true
+        }
+        if changed { save(all) }
+        lock.unlock()
+        if changed { notifyChanged() }
+    }
+
     /// Drop entries whose folder no longer exists on disk (moved/deleted out of
     /// band), so the queue can't accumulate dead rows. Returns the count removed.
     @discardableResult

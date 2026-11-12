@@ -66,6 +66,7 @@ enum TitleRetitler {
     @discardableResult
     static func retitle(folder: String, from oldName: String, to newName: String,
                         history: RipHistoryStore = .shared,
+                        pending: PendingRoutingQueue = .shared,
                         fileManager: FileManager = .default) throws -> String {
         let oldBase = fileBase(oldName)
         var newBase = fileBase(newName)
@@ -79,7 +80,7 @@ enum TitleRetitler {
             let existingName = (existing as NSString).lastPathComponent
             if MovieMatch.idTag(inLibraryName: newBase) != nil {
                 try retitle(folder: existing, from: existingName, to: newBase, history: history,
-                            fileManager: fileManager)
+                            pending: pending, fileManager: fileManager)
             } else {
                 newBase = existingName
             }
@@ -100,6 +101,7 @@ enum TitleRetitler {
             if isMovieFolder(destination, base: newBase, fileManager: fileManager) {
                 try LibraryFiles.fileEdition(from: folder, into: destination, fileManager: fileManager)
                 history.updateOutputLocation(from: folder, to: destination)
+                pending.updateFolder(from: folder, to: destination)
                 MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
                 return destination
             }
@@ -107,8 +109,41 @@ enum TitleRetitler {
         }
         try fileManager.moveItem(atPath: folder, toPath: destination)
         history.updateOutputLocation(from: folder, to: destination)
+        pending.updateFolder(from: folder, to: destination)
         MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
         return destination
+    }
+
+    /// Name a finished rip that has no film name yet (a disc whose label said
+    /// nothing, filed as "23604/Main_Movie_01-32-06.mkv"): its video files take
+    /// the folder's name first, the longest becoming the film itself and the
+    /// rest "Name - <their name>", then the whole rip is retitled to `newName`.
+    @discardableResult
+    static func nameRip(folder: String, to newName: String,
+                        history: RipHistoryStore = .shared,
+                        pending: PendingRoutingQueue = .shared,
+                        fileManager: FileManager = .default) throws -> String {
+        let oldBase = (folder as NSString).lastPathComponent
+        let names = try fileManager.contentsOfDirectory(atPath: folder)
+        let videos = names.filter { $0.lowercased().hasSuffix(".mkv") && !$0.hasPrefix(oldBase) }
+        let size = { (name: String) -> Int64 in
+            let path = (folder as NSString).appendingPathComponent(name)
+            return (try? fileManager.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+        }
+        let filmAlreadyNamed = names.contains { $0 == oldBase + ".mkv" }
+        let main = filmAlreadyNamed ? nil : videos.max { size($0) < size($1) }
+        for name in videos {
+            let stem = (name as NSString).deletingPathExtension
+            let renamed = name == main ? "\(oldBase).mkv" : "\(oldBase) - \(stem).mkv"
+            var to = (folder as NSString).appendingPathComponent(renamed)
+            if fileManager.fileExists(atPath: to) { to = LibraryFiles.uniqueFilePath(to, fileManager: fileManager) }
+            try fileManager.moveItem(atPath: (folder as NSString).appendingPathComponent(name), toPath: to)
+        }
+        if !names.contains(where: { $0.hasPrefix(oldBase) && $0.hasSuffix(".nfo") }) {
+            MovieNFO.write(in: folder, base: oldBase, fileManager: fileManager)
+        }
+        return try retitle(folder: folder, from: oldBase, to: newName, history: history,
+                           pending: pending, fileManager: fileManager)
     }
 
     /// A folder holding a rip of the film `base` names (any edition).

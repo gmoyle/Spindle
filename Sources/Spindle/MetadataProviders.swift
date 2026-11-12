@@ -132,7 +132,14 @@ enum DiscTitleQuery {
             .replacingOccurrences(of: " ", with: "_")
         return key.isEmpty || HomeVideoDetector.genericLabels.contains(key)
             || HomeVideoDetector.genericLabels.contains(key.replacingOccurrences(of: "_", with: " "))
-            || genericLabels.contains(key)
+            || genericLabels.contains(key) || isCatalogNumber(key)
+    }
+
+    /// A label that's only a long number ("23604", "0_43396_12345"): a catalog
+    /// or UPC number, not a title. Short numbers are titles ("1917", "300").
+    static func isCatalogNumber(_ label: String) -> Bool {
+        let digits = label.filter { !"_- .".contains($0) }
+        return digits.count >= 5 && digits.allSatisfy(\.isASCII) && digits.allSatisfy(\.isNumber)
     }
 
     /// More labels authoring tools leave on pressed discs.

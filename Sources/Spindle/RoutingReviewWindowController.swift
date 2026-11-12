@@ -22,6 +22,8 @@ final class RoutingReviewWindowController: NSWindowController {
     private(set) var isApplying = false
     /// "Moving Reservoir Dogs (1 of 2)…" while applying.
     private var progressText: String?
+    /// The open "Which film is this?" window, naming a rip from this list.
+    private var nameChooser: TitleChooserWindowController?
 
     convenience init() {
         let window = NSWindow(
@@ -81,20 +83,7 @@ final class RoutingReviewWindowController: NSWindowController {
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.rowHeight = 32
 
-        let discCol = NSTableColumn(identifier: .init("disc"))
-        discCol.title = "Disc"
-        discCol.width = 260
-        tableView.addTableColumn(discCol)
-
-        let guessCol = NSTableColumn(identifier: .init("guess"))
-        guessCol.title = "Guess"
-        guessCol.width = 120
-        tableView.addTableColumn(guessCol)
-
-        let choiceCol = NSTableColumn(identifier: .init("choice"))
-        choiceCol.title = "Route as"
-        choiceCol.width = 180
-        tableView.addTableColumn(choiceCol)
+        for column in Self.makeColumns() { tableView.addTableColumn(column) }
 
         scroll.documentView = tableView
         content.addSubview(scroll)
@@ -137,6 +126,32 @@ final class RoutingReviewWindowController: NSWindowController {
         return (acceptAll, apply)
     }
 
+    private static func makeColumns() -> [NSTableColumn] {
+        var columns: [NSTableColumn] = []
+        let discCol = NSTableColumn(identifier: .init("disc"))
+        discCol.title = "Rip"
+        discCol.width = 230
+        columns.append(discCol)
+
+        let nameCol = NSTableColumn(identifier: .init("name"))
+        nameCol.title = ""
+        nameCol.width = 80
+        columns.append(nameCol)
+
+        let guessCol = NSTableColumn(identifier: .init("guess"))
+        guessCol.title = "Spindle's guess"
+        guessCol.headerToolTip = "Movie or TV show, judged from the lengths of the disc's titles, "
+            + "and how sure Spindle is."
+        guessCol.width = 110
+        columns.append(guessCol)
+
+        let choiceCol = NSTableColumn(identifier: .init("choice"))
+        choiceCol.title = "Route as"
+        choiceCol.width = 170
+        columns.append(choiceCol)
+        return columns
+    }
+
     private static func makeSpinner() -> NSProgressIndicator {
         let spinner = NSProgressIndicator()
         spinner.style = .spinning
@@ -154,7 +169,8 @@ final class RoutingReviewWindowController: NSWindowController {
         let n = items.count
         statusLabel.stringValue = n == 0
             ? "No rips awaiting routing. New rips will appear here."
-            : "\(n) rip\(n == 1 ? "" : "s") awaiting a Movie/TV Show decision."
+            : "\(n) rip\(n == 1 ? "" : "s") to file. Choose Movie or TV Show for each, then Apply. "
+                + "Name… names a rip Spindle couldn't identify."
     }
 
     /// Accept every row's guess and route them now. Sets each choice to its guess
@@ -211,7 +227,10 @@ final class RoutingReviewWindowController: NSWindowController {
         applyButton.isEnabled = !applying
         tableView.isEnabled = !applying
         for row in 0..<tableView.numberOfRows {
-            (tableView.view(atColumn: 2, row: row, makeIfNecessary: false) as? NSControl)?.isEnabled = !applying
+            for column in [1, 3] {
+                (tableView.view(atColumn: column, row: row, makeIfNecessary: false) as? NSControl)?
+                    .isEnabled = !applying
+            }
         }
         if applying { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
         updateStatus()
@@ -254,9 +273,16 @@ extension RoutingReviewWindowController: NSTableViewDataSource, NSTableViewDeleg
 
         switch id {
         case "disc":
-            let label = NSTextField(labelWithString: item.discName)
+            let label = NSTextField(labelWithString: Self.ripName(item))
             label.toolTip = item.note
+            label.lineBreakMode = .byTruncatingMiddle
             return label
+        case "name":
+            let button = NSButton(title: "Name…", target: self, action: #selector(nameRip(_:)))
+            button.tag = row
+            button.controlSize = .small
+            button.isEnabled = !isApplying
+            return button
         case "guess":
             let pct = Int(item.confidence * 100)
             let text = item.guessedType == .unknown
@@ -276,6 +302,68 @@ extension RoutingReviewWindowController: NSTableViewDataSource, NSTableViewDeleg
             return seg
         default:
             return nil
+        }
+    }
+}
+
+// MARK: - Naming a rip
+
+extension RoutingReviewWindowController {
+
+    /// The rip as listed: its folder's name, with the disc label when they
+    /// differ ("Heat (1995)  ·  disc HEAT_DC").
+    static func ripName(_ item: PendingRouting) -> String {
+        let folder = (item.folderPath as NSString).lastPathComponent
+        return folder == item.discName ? folder : "\(folder)  ·  disc \(item.discName)"
+    }
+
+    /// "Name…": find the film (or type its name), and the rip's folder and
+    /// files are renamed to it, ready to file as a movie.
+    @objc func nameRip(_ sender: NSButton) {
+        guard !isApplying, sender.tag >= 0, sender.tag < items.count else { return }
+        let item = items[sender.tag]
+        let folderName = (item.folderPath as NSString).lastPathComponent
+        let generic = DiscTitleQuery.isGenericLabel(item.discName)
+        let choice = TitleChoice(discName: item.discName, guessedName: folderName, choices: [],
+                                 labelIsGeneric: true)
+        let chooser = TitleChooserWindowController(
+            choice: choice,
+            discOwnName: generic ? nil : MainViewController.discOwnName(item.discName),
+            intro: "Which film is \(folderName)? Search for it, or type its name, and the rip's folder "
+                + "and files are renamed to it. Then file it as a Movie.",
+            keepTitle: "Cancel",
+            searchText: generic ? nil : MainViewController.discOwnName(item.discName))
+        chooser.onChoose = { [weak self] name in
+            self?.nameChooser = nil
+            guard let name = name else { return }
+            self?.rename(item, to: name)
+        }
+        nameChooser = chooser
+        chooser.showWindow(nil)
+    }
+
+    private func rename(_ item: PendingRouting, to name: String) {
+        showProgress("Naming \((item.folderPath as NSString).lastPathComponent)…")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Result { try TitleRetitler.nameRip(folder: item.folderPath, to: name) }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.progressText = nil
+                switch result {
+                case .success(let renamed):
+                    Logger.shared.log("Named \(item.folderPath) → \(renamed)", level: .info, category: .general)
+                    self.choices[item.id] = .movie
+                case .failure(let error):
+                    Logger.shared.logError(error, context: "Naming \(item.folderPath)")
+                    let alert = NSAlert()
+                    alert.messageText = "Couldn't name the rip"
+                    alert.informativeText = error.localizedDescription
+                    if !TestingUtilities.shared.isRunningInTestEnvironment { alert.runModal() }
+                }
+                self.reload()
+                self.tableView.reloadData()
+                self.updateStatus()
+            }
         }
     }
 }
