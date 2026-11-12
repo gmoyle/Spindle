@@ -146,11 +146,17 @@ enum HomeMadeDiscCheck {
     struct Signs: Equatable {
         /// CSS copy protection; nil if the drive couldn't say.
         let scrambled: Bool?
-        /// The regions the disc won't play in (VIDEO_TS.IFO); 0 plays everywhere.
+        /// The regions the disc won't play in (VIDEO_TS.IFO), one bit each for
+        /// regions 1–8; 0 plays everywhere.
         let regionMask: UInt8?
 
+        /// Plays in every region where discs are sold (1–6). Region 7 is
+        /// reserved and 8 is for planes and ships, so authoring tools often
+        /// block them on discs that are otherwise region-free (mask 0x40).
+        var isRegionFree: Bool { regionMask.map { $0 & 0x3F == 0 } ?? false }
+
         /// No copy protection and no region lock.
-        var looksHomeMade: Bool { scrambled == false && regionMask == 0 }
+        var looksHomeMade: Bool { scrambled == false && isRegionFree }
     }
 
     /// Read both signs. Opens the drive briefly, so it runs with no MakeMKV

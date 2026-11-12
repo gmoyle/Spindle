@@ -26,6 +26,11 @@ final class HomeVideoChoiceTests: XCTestCase {
         XCTAssertFalse(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: 0xFE).looksHomeMade)
         XCTAssertFalse(HomeMadeDiscCheck.Signs(scrambled: nil, regionMask: 0).looksHomeMade, "unknown isn't home-made")
         XCTAssertFalse(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: nil).looksHomeMade)
+        // Only region 7 (reserved) blocked, as on a real school video: still region-free.
+        XCTAssertTrue(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: 0x40).looksHomeMade)
+        XCTAssertTrue(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: 0xC0).looksHomeMade)
+        XCTAssertFalse(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: 0xFE).looksHomeMade, "region 1 only")
+        XCTAssertFalse(HomeMadeDiscCheck.Signs(scrambled: false, regionMask: 0x01).looksHomeMade, "not region 1")
     }
 
     // MARK: - Filing a rip as a home video

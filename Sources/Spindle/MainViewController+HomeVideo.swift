@@ -31,7 +31,8 @@ extension MainViewController {
 
     /// Name a video disc as a film: a generic label rips under a placeholder,
     /// any other is looked up. A home-made disc (`homeVideoIfUnfound`) whose
-    /// label names no film is a home video instead.
+    /// label names no film for sure is a home video instead: "4TH2015" only
+    /// half-matches a concert film.
     func identifyFilm(on drive: OpticalDrive, homeVideoIfUnfound: Bool) {
         // A label like DVD_VIDEO names the format, not the film: searching it
         // only finds unrelated titles. Rip under a placeholder and ask.
@@ -51,9 +52,9 @@ extension MainViewController {
             return
         }
         lookupDiscTitle(volumeName: drive.name) { resolution in
-            if resolution == nil, homeVideoIfUnfound {
-                self.importAsHomeVideo(drive, reason: "No film called \(drive.name) was found, and the disc has no "
-                                       + "copy protection or region lock: importing it as a home video.")
+            if homeVideoIfUnfound, resolution?.isConfident != true {
+                self.importAsHomeVideo(drive, reason: "No film called \(drive.name) was found for sure, and the disc "
+                                       + "has no copy protection or region lock: importing it as a home video.")
                 return
             }
             // Nothing found for a film's label: rip under the label as a film
