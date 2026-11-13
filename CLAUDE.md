@@ -54,6 +54,10 @@ swiftlint lint
    `DiscReads` enumeration lock), or one the user marks; those mounts are kept in
    `homeVideoMounts`. `HomeVideoFiler` moves a finished film rip into Home Videos. Under XCTest `startMonitoring` does nothing, so tests never
    see, eject or rip a real disc.
+   macOS renames a music CD ("Audio CD" → its album) seconds after mounting it:
+   `DriveDetector` reports the renamed volume as a new disc, and
+   `MainViewController.supersedeReads` (by device, `mountDevices`) quietly cancels the
+   rip under the old name (`supersededJobs`) and blocks it (`renamedMounts`).
 2. **Skip check**: `MainViewController.findCompletedRip` treats a disc as already ripped if
    (a) `PendingRoutingQueue` holds it, (b) `RipHistoryStore` has an entry whose `DiscIdentity`
    fingerprint matches **and** whose `ConversionQueue.settingsFingerprint` is unchanged, or
@@ -101,7 +105,7 @@ swiftlint lint
      (its blocks include the 150-sector lead-in; the struct stores LBAs without it) and
      computes the MusicBrainz disc ID. `MainViewController.lookupAlbum` resolves the album
      before queueing (`MusicBrainzProvider`; near matches only if every track length is within
-     3 s). Phase 1 copies each AIFF to `Caches/Spindle/encoding/cd-<discid>/` and fetches the
+     3 s). Phase 1 copies each AIFF to the rip's own `encoding/rip-<uuid>/cd-<discid>/` and fetches the
      cover; each track is a `PendingEncode` to FLAC (`flacEncodeArguments`) whose output is the
      final `Music/Artist/Album (Year)/` path, so there's no routing step.
      `settingsFingerprint` for CDs is just `format: flac`.
@@ -120,8 +124,10 @@ swiftlint lint
    the newer libraries defaulting next to the Movies root. Title lookups go through
    `MetadataProviders` (`MovieMetadataProvider`, OMDb today); `DiscTitleQuery` turns a volume
    label into search terms.
-6. **Organization and routing**: `OutputOrganizer` and `SettingsManager` directory-format tokens
-   build the output folder (Plex `Movie (Year)` naming when `plexName` is set; OMDb lookup lives
+6. **Organization and routing**: films and TV rip into the Rips Folder (`SettingsManager.lastOutputPath`,
+   set in Settings; `MainViewController.ripsFolder`, which tests override with `ripsFolderOverride`).
+   `OutputOrganizer` and `SettingsManager` directory-format tokens
+   build the output folder (Plex `Movie (Year)` naming when `plexName` is set, plus `MovieNFO` and `MoviePoster` (`poster.jpg`) sidecars; OMDb lookup lives
    in `MainViewController+OMDb.swift`). After a rip, `ContentRouter` uses
    `ContentTypeClassifier` (title durations) to move the folder into the Movies or TV root, or
    queues it in `PendingRoutingQueue` for `RoutingReviewWindowController`.

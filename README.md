@@ -116,8 +116,10 @@ percentage). The app handles everything automatically:
 **Overrides**: a disc already ripped with the current settings is skipped and
 ejected. Change any rip setting, hold **⌥ Option** while inserting, or click
 **Start Ripping** to force a re-rip. Auto-rip, auto-eject, and skip-already-ripped
-each have a checkbox in the main window; the output directory can be changed with
-**Browse** (it defaults to your Plex movie library if one is found).
+each have a checkbox in the main window. Films and TV seasons are ripped into the
+**Rips Folder** (Settings → Output & Routing; it defaults to your Plex movie library
+if one is found), then routed. The main window lists every disc in a drive and every
+rip, each with its own **Cancel** button.
 
 Rip settings live in **Settings…** (Output & Routing, Encoding, Advanced). See the
 [Settings Guide](DETAILED_SETTINGS_GUIDE.md) for each option.

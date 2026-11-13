@@ -152,7 +152,7 @@ extension MainViewController: ConversionQueueDelegate {
 
     func queueDidUpdateJobs(_ jobs: [ConversionQueue.ConversionJob]) {
         queueJobs = Self.newestFirst(jobs)
-        queueTableView.reloadData()
+        reloadDiscList()
     }
 
     /// The queue table lists the most recently added job first. Ties (jobs added
@@ -208,8 +208,11 @@ extension MainViewController: ConversionQueueDelegate {
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
         dropTitleChoice(forJob: jobId)
-        appendToLog(logLine("Rip failed: \(error.localizedDescription)", forJob: jobId))
-        showErrorNotification("Ripping failed: \(error.localizedDescription)")
+        // Replaced by a rip of the same disc under its new name: not a failure.
+        if supersededJobs.remove(jobId) == nil {
+            appendToLog(logLine("Rip failed: \(error.localizedDescription)", forJob: jobId))
+            showErrorNotification("Ripping failed: \(error.localizedDescription)")
+        }
         if !stopReading(jobId) {
             queueRipInProgress = false
             resetRipUI()

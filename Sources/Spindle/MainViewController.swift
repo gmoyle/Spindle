@@ -9,9 +9,6 @@ class MainViewController: NSViewController {
     internal var sourceDropDown: NSPopUpButton!
     internal var refreshDrivesButton: NSButton!
     internal var browseSourceButton: NSButton!
-    internal var outputLabel: NSTextField!
-    internal var outputPathField: NSTextField!
-    internal var browseOutputButton: NSButton!
     internal var ripButton: NSButton!
     internal var progressIndicator: NSProgressIndicator!
     internal var progressStatusLabel: NSTextField!
@@ -24,6 +21,12 @@ class MainViewController: NSViewController {
     internal var queueTableView: NSTableView!
     internal var queueScrollView: NSScrollView!
     internal var queueJobs: [ConversionQueue.ConversionJob] = []
+    /// The Discs list: discs in the drives and every rip, each with its Cancel.
+    internal var discRows: [DiscListRow] = []
+    /// Set by tests in place of Settings ▸ Rips Folder.
+    internal var ripsFolderOverride: String?
+    /// Where film and TV rips are written before they're routed (Settings ▸ Rips Folder).
+    internal var ripsFolder: String { ripsFolderOverride ?? settingsManager.lastOutputPath ?? "" }
     internal var queueEncodePhase = false  // false: reading disc, true: background encode
 
     // Collapsible log
@@ -73,6 +76,14 @@ class MainViewController: NSViewController {
     /// Discs (by mount point) to import as home videos though they're pressed:
     /// detected as home-made, or marked so in the "Which film is this?" window.
     internal var homeVideoMounts: Set<String> = []
+    /// The device each disc was mounted from, by mount point, kept after an
+    /// unmount so a disc remounted under a new name is recognised.
+    internal var mountDevices: [String: String] = [:]
+    /// Rips cancelled because their disc was renamed and is being ripped again.
+    internal var supersededJobs: Set<UUID> = []
+    /// Mount points a disc was renamed away from: a lookup that finishes for
+    /// one mustn't start a rip there.
+    internal var renamedMounts: Set<String> = []
 
     // DVD Ripper
     internal var dvdRipper: DVDRipper!
@@ -153,7 +164,6 @@ class MainViewController: NSViewController {
     private func setupUI() {
         setupTitleLabel()
         setupSourceSection()
-        setupOutputSection()
         setupAutomationSettings()
         setupRipButton()
         setupProgressIndicator()
@@ -190,21 +200,6 @@ class MainViewController: NSViewController {
         browseSourceButton.translatesAutoresizingMaskIntoConstraints = false
         browseSourceButton.isHidden = true  // Hide by default
         view.addSubview(browseSourceButton)
-    }
-
-    private func setupOutputSection() {
-        outputLabel = NSTextField(labelWithString: "Output Directory:")
-        outputLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(outputLabel)
-
-        outputPathField = NSTextField()
-        outputPathField.placeholderString = "Select output directory..."
-        outputPathField.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(outputPathField)
-
-        browseOutputButton = NSButton(title: "Browse", target: self, action: #selector(browseOutputPath))
-        browseOutputButton.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(browseOutputButton)
     }
 
     private func setupAutomationSettings() {
@@ -358,10 +353,12 @@ class MainViewController: NSViewController {
         queueTableView.usesAlternatingRowBackgroundColors = true
 
         let columns: [(id: String, title: String, width: CGFloat)] = [
-            ("title", "Disc Title", 220),
-            ("status", "Status", 170),
-            ("progress", "Progress", 120),
-            ("duration", "Duration", 80)
+            ("disc", "Disc", 120),
+            ("title", "Ripping As", 200),
+            ("status", "Status", 160),
+            ("progress", "Progress", 70),
+            ("duration", "Time", 60),
+            ("cancel", "", 70)
         ]
         for spec in columns {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(spec.id))
@@ -450,22 +447,6 @@ class MainViewController: NSViewController {
         }
     }
 
-    @objc private func browseOutputPath() {
-        let openPanel = NSOpenPanel()
-        openPanel.canChooseFiles = false
-        openPanel.canChooseDirectories = true
-        openPanel.allowsMultipleSelection = false
-        openPanel.title = "Select Output Directory"
-
-        if let url = testingUtils.showFilePanel(
-            openPanel, testPath: "/tmp/test_output", logHandler: { [weak self] logMessage in
-            self?.appendToLog(logMessage)
-        }) {
-            outputPathField.stringValue = url.path
-            saveCurrentSettings()
-        }
-    }
-
     @objc internal func startRipping() {
         appendToLog("startRipping method called")
 
@@ -501,8 +482,8 @@ class MainViewController: NSViewController {
             return
         }
 
-        guard !outputPathField.stringValue.isEmpty else {
-            showAlert(title: "Error", message: "Please select an output directory.")
+        guard !ripsFolder.isEmpty else {
+            showAlert(title: "Error", message: "Choose a Rips Folder in Settings.")
             return
         }
 
@@ -515,7 +496,7 @@ class MainViewController: NSViewController {
 
         appendToLog("Starting rip of \(currentDrive.displayName)...")
         appendToLog("Source: \(currentDrive.mountPoint)")
-        appendToLog("Output: \(outputPathField.stringValue)")
+        appendToLog("Output: \(ripsFolder)")
 
         guard mediaType.isImportSupported else {
             showAlert(title: "Error", message: mediaType == .unknown
@@ -599,6 +580,7 @@ class MainViewController: NSViewController {
     }
 
     func updateDriveDropdown() {
+        reloadDiscList()
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
             resolvedDiscTitle = nil
@@ -711,6 +693,10 @@ extension MainViewController: DriveDetectorDelegate {
                     + "Spindle can't import it, so it was left in the drive.")
                 return
             }
+            // The same disc under a new name (macOS renamed it): replace its rip.
+            self.supersedeReads(onDevice: drive.devicePath, renamedTo: drive.mountPoint)
+            self.mountDevices[drive.mountPoint] = drive.devicePath
+            self.renamedMounts.remove(drive.mountPoint)
             self.detectedDrives.append(drive)
             self.appendToLog("New disc detected: \(drive.displayName) (\(drive.type.displayName))")
             self.resolvedDiscTitle = nil
@@ -836,7 +822,7 @@ extension MainViewController: DriveDetectorDelegate {
             mediaTypedRelative = "\(mediaType.folderName)/\(movieName)"
         }
 
-        var candidates = [outputPathField.stringValue.appending("/\(mediaTypedRelative)")]
+        var candidates = [ripsFolder.appending("/\(mediaTypedRelative)")]
         if settingsManager.contentRoutingEnabled {
             candidates.append(settingsManager.moviesRootDirectory.appending("/\(folderName)"))
             candidates.append(settingsManager.tvShowsRootDirectory.appending("/\(folderName)"))
@@ -1237,13 +1223,14 @@ extension MainViewController: DriveDetectorDelegate {
             return
         }
 
+        guard !wasRenamedAway(drive) else { return }
         guard !conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint) else {
             appendToLog("Skipping auto-rip: job already active for \(drive.displayName)")
             return
         }
 
-        guard !outputPathField.stringValue.isEmpty else {
-            showAlert(title: "Error", message: "Output directory must be set for auto-ripping.")
+        guard !ripsFolder.isEmpty else {
+            showAlert(title: "Error", message: "Choose a Rips Folder in Settings for auto-ripping.")
             return
         }
 
@@ -1293,8 +1280,7 @@ extension MainViewController: DriveDetectorDelegate {
         saveCurrentSettings()
 
         let autoRipTitle = queueTitle(for: drive, configuration: configuration)
-        let autodriveTypeString = drive.type.displayName
-        appendToLog("Queued: \(autoRipTitle) (\(autodriveTypeString))")
+        appendToLog("Queued: \(autoRipTitle) (\(drive.type.displayName))")
 
         conversionQueue.addJob(
             sourcePath: drive.mountPoint,
