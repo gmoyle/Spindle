@@ -293,7 +293,12 @@ extension MediaRipper {
     /// resolved name (`plexBaseName`).
     func createDiscInfo(in directory: String, mediaPath: String, mediaType: MediaType, movieName: String,
                         libraryName: String? = nil) {
-        if let name = libraryName { MovieNFO.write(in: directory, base: name) }
+        if let name = libraryName {
+            MovieNFO.write(in: directory, base: name)
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                MoviePoster.save(in: directory, libraryName: name)
+            }
+        }
         var discInfo: [String: Any] = [
             "movie_name": movieName,
             "media_type": mediaType.folderName,

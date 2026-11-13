@@ -35,7 +35,7 @@ With the default settings you only insert discs:
    next one.
 5. **Encode.** FFmpeg converts each title to MKV in the background, while the next
    disc reads.
-6. **File.** Finished files move into the output folder and then, with content
+6. **File.** Finished files move into the Rips Folder and then, with content
    routing on, into your Movies or TV Shows library.
 
 The Mac won't idle-sleep while a job is running, because sleep cuts power to USB
@@ -45,13 +45,19 @@ drives in the middle of a read.
 time, each into its own place in the cache, and each ejects when it's done. Each
 drive reads one disc at a time. Encodes still run one after another. While two
 discs are reading, the progress line shows both ("Heat 41% · Aliens 12%"), the
-log names the disc each line is about, and **Cancel Rip** asks which disc to stop.
+log names the disc each line is about, and each disc has its own **Cancel** in the
+Discs list.
 
 ## Main window
 
 - **Source**: the drive dropdown lists optical drives (**Refresh** rescans);
   **Browse** picks a disc folder or image instead.
-- **Output**: where rips are written before routing.
+- **Discs list**: every disc in a drive and every rip this session: the disc's
+  label, the name it's ripped as, its status (in drive, queued, reading, encoding,
+  done) and progress. A rip that's queued, reading or encoding has a **Cancel**
+  button; right-click a rip to retry it or show it in Finder.
+- Where films and TV seasons are written before routing is **Rips Folder** in
+  Settings → Output & Routing.
 - **Auto-rip inserted discs**, **Auto-eject after ripping**, **Skip discs already
   ripped**, **Keep this Mac awake and unlocked**: see
   [Settings Guide → Main window](DETAILED_SETTINGS_GUIDE.md#main-window).

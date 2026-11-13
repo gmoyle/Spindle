@@ -19,6 +19,15 @@ struct HomeVideoInfo: Equatable {
         total <= 1 ? "\(folderName).mkv" : "\(folderName) - " + String(format: "%02d", index + 1) + ".mkv"
     }
 
+    /// ffmpeg tags naming a recording and dating it, for a media server that
+    /// prefers local metadata (Plex "Personal Media", Jellyfin): the title
+    /// shown, and the day it was recorded.
+    func metadataArguments(title: String) -> [String] {
+        let day = Self.dayFormatter.string(from: date)
+        return ["-metadata", "title=\(title)", "-metadata", "date=\(day)",
+                "-metadata", "creation_time=\(day)T12:00:00Z"]
+    }
+
     static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

@@ -35,11 +35,12 @@ extension MediaRipper {
         let discFolder = MusicLibraryNaming.discFolder(for: album, in: configuration.outputDirectory)
         try FileManager.default.createDirectory(atPath: discFolder, withIntermediateDirectories: true)
 
-        let staging = AppIdentity.cachesDirectory
-            .appendingPathComponent("encoding/cd-\(MusicLibraryNaming.safe(discID))", isDirectory: true)
-        try? FileManager.default.removeItem(at: staging)
+        // Inside this rip's own folder: two rips of one CD (a disc macOS renamed
+        // mid-read looks like a second disc) mustn't share, or one's cleanup
+        // deletes the other's tracks.
+        let staging = URL(fileURLWithPath: stagingFolder)
+            .appendingPathComponent("cd-\(MusicLibraryNaming.safe(discID))", isDirectory: true)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-        stagingDirectoriesToRemove.append(staging.path)
 
         let cover = downloadCover(for: album, into: staging)
         if let cover = cover {

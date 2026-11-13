@@ -157,13 +157,13 @@ final class MainViewControllerExtensionTests: XCTestCase {
         // Test settings loading doesn't crash
         XCTAssertNoThrow(viewController.loadSettings())
         
-        // Output field should be accessible after loading
-        XCTAssertNotNil(viewController.outputPathField)
+        // A Rips Folder is set after loading
+        XCTAssertFalse(viewController.ripsFolder.isEmpty)
     }
     
     func testSaveCurrentSettings() {
         // Set a test output path
-        viewController.outputPathField.stringValue = testOutputPath
+        viewController.ripsFolderOverride = testOutputPath
         
         // Test settings saving doesn't crash
         XCTAssertNoThrow(viewController.saveCurrentSettings())
@@ -252,7 +252,7 @@ final class MainViewControllerExtensionTests: XCTestCase {
     
     func testQueueBasedRipping() {
         // Set up test paths
-        viewController.outputPathField.stringValue = testOutputPath
+        viewController.ripsFolderOverride = testOutputPath
         
         // Test that queue-based ripping doesn't crash
         XCTAssertNoThrow({
@@ -268,7 +268,7 @@ final class MainViewControllerExtensionTests: XCTestCase {
     
     func testAutoRippingWithQueue() {
         // Set up for auto-ripping
-        viewController.outputPathField.stringValue = testOutputPath
+        viewController.ripsFolderOverride = testOutputPath
         viewController.autoRipCheckbox.state = .on
         viewController.autoRipToggled()
         
@@ -393,7 +393,7 @@ final class MainViewControllerExtensionTests: XCTestCase {
 internal extension MainViewController {
     // Helper for testing - checks if UI components are accessible
     var hasUIComponentsInitialized: Bool {
-        return logTextView != nil && progressIndicator != nil && ripButton != nil && outputPathField != nil
+        return logTextView != nil && progressIndicator != nil && ripButton != nil
     }
     
     // Mock UI components for testing when real ones aren't available
@@ -408,9 +408,6 @@ internal extension MainViewController {
         if ripButton == nil {
             ripButton = NSButton()
             ripButton.title = "Start Ripping"
-        }
-        if outputPathField == nil {
-            outputPathField = NSTextField()
         }
         if sourceDropDown == nil {
             sourceDropDown = NSPopUpButton()

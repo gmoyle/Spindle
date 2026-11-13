@@ -102,11 +102,17 @@ extension MediaRipper {
                 try readTitleWithLibdvdcss(title, dvdPath: dvdPath, to: sourcePath,
                                            titleIndex: plan.index, totalTitles: plans.count)
             }
+            var arguments = dvdEncodeArguments(for: title, input: sourcePath, output: plan.stagingPath,
+                                               configuration: configuration, ffmpegPath: ffmpegPath,
+                                               labelLanguagesFromIFO: staged[plan.index] == nil)
+            if let home = homeVideo {
+                // Before the trailing "-f matroska -y <output>".
+                let name = (plan.outputFileName as NSString).deletingPathExtension
+                arguments.insert(contentsOf: home.metadataArguments(title: name), at: arguments.count - 4)
+            }
             pendingEncodes.append(PendingEncode(
                 ffmpegPath: ffmpegPath,
-                arguments: dvdEncodeArguments(for: title, input: sourcePath, output: plan.stagingPath,
-                                              configuration: configuration, ffmpegPath: ffmpegPath,
-                                              labelLanguagesFromIFO: staged[plan.index] == nil),
+                arguments: arguments,
                 sourcePath: sourcePath, outputPath: plan.outputPath, stagingPath: plan.stagingPath,
                 titleNumber: title.number, mediaItem: .dvdTitle(title),
                 itemIndex: plan.index, totalItems: plans.count))

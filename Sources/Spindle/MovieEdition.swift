@@ -212,6 +212,8 @@ extension LibraryFiles {
         for name in try fileManager.contentsOfDirectory(atPath: source) where name != ".DS_Store" {
             let from = (source as NSString).appendingPathComponent(name)
             let to = (destination as NSString).appendingPathComponent(name)
+            // One poster per film folder: the one already there stays.
+            if name == MoviePoster.fileName, fileManager.fileExists(atPath: to) { continue }
             var isDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: from, isDirectory: &isDirectory), isDirectory.boolValue {
                 try? fileManager.createDirectory(atPath: to, withIntermediateDirectories: true)
