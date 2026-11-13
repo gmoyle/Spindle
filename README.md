@@ -26,7 +26,7 @@ Importing from folders, USB drives and Apple Photos is next (see the [Roadmap](R
 - **Damaged discs** - Unreadable sectors are retried, then skipped (up to a limit) instead of failing the rip
 - **TV seasons** - Every episode ripped (not the "play all" title), named from TMDB or OMDb, filed as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`; disc 2 picks up where disc 1 stopped
 - **Music CDs** - Identified on MusicBrainz, ripped to FLAC with tags and cover art, filed as `Music/Artist/Album (Year)/01 - Title.flac`
-- **Photo discs** - Each photo copied and verified, filed by the date it was taken (`Photos/2004/2004-07-14/`) and/or added to Apple Photos, duplicates skipped
+- **Photo discs** - Each photo copied and verified, filed by the date it was taken in your Photos folder's own layout (decade/year/month folders, or `Photos/2004/2004-07-14/`) and/or added to Apple Photos, photos already anywhere in the library skipped
 - **Home videos and data discs** - Camcorder and recorder DVDs ripped into Home Videos, named by date; other data discs copied as they are into Imported Discs
 - **Blu-ray Support** - Via MakeMKV (auto-detected once installed); the app helps you install it, and can update an expired build for you
 - **DVDs need nothing extra** - No MakeMKV, key database, or other tools required for DVD ripping

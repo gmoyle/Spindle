@@ -212,6 +212,64 @@ final class PhotoFilingTests: TempFolderTestCase {
         XCTAssertEqual(result.files.count, 1)
         XCTAssertTrue(MediaRipper.isAlreadyImported(a.hash, destination: .both, index: index))
     }
+
+    // MARK: - Following the library's own layout
+
+    private func makeDecadeLibrary() throws {
+        try write("Photos/~ To 1979/1975/June/1975-06-Sat-000000.jpg", "old")
+        try write("Photos/2000-2009/2004/June/2004-06-Fri-130741.jpg", "existing")
+    }
+
+    func testDetectsADecadeLibrary() throws {
+        XCTAssertEqual(PhotoLibraryNaming.layout(of: root), .byDay, "no folder yet")
+        try makeDecadeLibrary()
+        let layout = PhotoLibraryNaming.layout(of: root)
+        XCTAssertTrue(layout.decades)
+        XCTAssertEqual(layout.earlyFolder, "~ To 1979")
+        XCTAssertEqual(layout.earlyFolderLastYear, 1979)
+        XCTAssertEqual(PhotoLibraryNaming.decadeStart(ofFolder: "2010-2019"), 2010)
+        XCTAssertNil(PhotoLibraryNaming.decadeStart(ofFolder: "2004-07-14"))
+        XCTAssertNil(PhotoLibraryNaming.decadeStart(ofFolder: "2004"))
+    }
+
+    func testDecadeFoldersAndDateNames() throws {
+        try makeDecadeLibrary()
+        let layout = PhotoLibraryNaming.layout(of: root)
+        let date = try XCTUnwrap(PhotoMedia.parseEXIFDate("2004:07:14 15:32:10"))
+        XCTAssertEqual(PhotoLibraryNaming.path(for: "/s/100_0126b.JPG", date: date, in: "/P", layout: layout),
+                       "/P/2000-2009/2004/July/2004-07-Wed-153210.jpg")
+        let old = try XCTUnwrap(PhotoMedia.parseEXIFDate("1975:06:07 00:00:00"))
+        XCTAssertEqual(PhotoLibraryNaming.folder(for: old, in: "/P", layout: layout), "/P/~ To 1979/1975/June")
+        let new = try XCTUnwrap(PhotoMedia.parseEXIFDate("2021:01:02 03:04:05"))
+        XCTAssertEqual(PhotoLibraryNaming.folder(for: new, in: "/P", layout: layout), "/P/2020-2029/2021/January")
+        XCTAssertEqual(PhotoLibraryNaming.path(for: "/s/scan.tif", date: nil, in: "/P", layout: layout),
+                       "/P/Undated/scan.tif", "no date: keep the name")
+    }
+
+    func testFilesIntoADecadeLibraryAndSkipsPhotosAlreadyThere() throws {
+        try makeDecadeLibrary()
+        // Already in the library under its renamed name.
+        let known = try staged("100_0126.JPG", "existing", date: "2004:06:11 13:07:41")
+        // Same second as an existing photo: numbered as the library does.
+        let sameSecond = try staged("100_0127.JPG", "new one", date: "2004:06:11 13:07:41")
+        let undated = try staged("scan.psd.jpg", "scan", date: nil)
+        let result = try MediaRipper.filePhotos([known, sameSecond, undated], destination: .folder, root: root,
+                                                index: index)
+        XCTAssertEqual(result.files, [root + "/2000-2009/2004/June/2004-06-Fri-130741(1).jpg",
+                                      root + "/Undated/scan.psd.jpg"])
+        XCTAssertTrue(result.summary.contains("1 already in the library"), result.summary)
+        XCTAssertEqual(index.entry(forHash: known.hash)?.path, root + "/2000-2009/2004/June/2004-06-Fri-130741.jpg")
+        XCTAssertFalse(fm.fileExists(atPath: root + "/2004"), "no year folder beside the decades")
+    }
+
+    func testLibraryContentsIgnoresTheRecycleBin() throws {
+        let binned = try write("Photos/@Recycle/old.jpg", "binned")
+        let photo = try staged("a.jpg", "binned")
+        let contents = PhotoLibraryContents(root: root)
+        XCTAssertEqual(contents.fileCount, 0)
+        XCTAssertNil(contents.copy(of: photo.path, hash: photo.hash))
+        XCTAssertTrue(fm.fileExists(atPath: binned))
+    }
 }
 
 /// Collects what a ripper reports.

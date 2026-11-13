@@ -4,7 +4,7 @@ import Photos
 
 /// Where photos from a photo disc go, chosen the first time one is inserted.
 enum PhotoDestination: String, CaseIterable {
-    /// The Photos library folder: `Photos/2004/2004-07-14/`.
+    /// The Photos library folder, laid out as it already is (`PhotoLibraryNaming`).
     case folder
     /// The Apple Photos app's library.
     case applePhotos
@@ -92,17 +92,6 @@ enum PhotoMedia {
         guard let date = formatter.date(from: String(trimmed)),
               Calendar.current.component(.year, from: date) > 1900 else { return nil }
         return date
-    }
-}
-
-/// `Photos/2004/2004-07-14/IMG_0001.JPG`; photos with no date go in `Photos/Undated/`.
-enum PhotoLibraryNaming {
-    static func folder(for date: Date?, in root: String) -> String {
-        guard let date = date else { return (root as NSString).appendingPathComponent("Undated") }
-        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        let year = String(format: "%04d", parts.year ?? 0)
-        let day = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
-        return ((root as NSString).appendingPathComponent(year) as NSString).appendingPathComponent(day)
     }
 }
 
