@@ -278,11 +278,21 @@ folder, a Kodak Picture CD, a disc of JPEG, HEIC or RAW files):
    against the original. Other files (viewer programs, `autorun.inf`) are left on
    the disc. Then the disc ejects.
 3. Photos are filed by the date they were taken (from the camera's EXIF data, or
-   the file's date) as `Photos/2004/2004-07-14/IMG_0001.JPG`. Photos with no date go
-   in `Photos/Undated/`. A different photo with the same name gets ` (2)`.
+   the file's date), following the layout your Photos folder already has:
+   - If it has decade folders (`2000-2009`, `2010-2019`, and perhaps `~ To 1979`
+     for the oldest), each photo goes in `2000-2009/2004/July/` and is named by
+     the time it was taken, e.g. `2004-07-Wed-153210.jpg`. Two photos from the same
+     second become `…(1).jpg`.
+   - Otherwise photos go in `Photos/2004/2004-07-14/` and keep their names
+     (`IMG_0001.JPG`). A different photo with the same name gets ` (2)`.
 
-Spindle remembers each photo it has imported by its content, so the same photo on
-another disc, or twice on one disc, is imported only once. Apple Photos asks for
+   Photos with no date go in `Photos/Undated/`.
+
+Spindle won't import a photo that's already in the Photos folder, even under another
+name or in another folder: before filing, it compares each photo with every file of
+the same size in the library (the NAS's recycle bin is ignored). It also remembers
+each photo it has imported by its content, so the same photo on another disc, or
+twice on one disc, is imported only once. Apple Photos asks for
 permission the first time. If you don't allow it, the photos go to the Photos folder
 instead, so nothing is lost.
 
