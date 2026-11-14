@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎬 Film titles
 - **Labels without apostrophes are found**: `OCEANS_ELEVEN_2001` is also searched as "Ocean's Eleven", and `MATRIX_THE` as "The Matrix". Titles are compared without punctuation.
+- **Titles spelled differently from the label are found**: `SEVEN` is *Se7en* (a digit standing in for letters), and `OCEANS_11` is *Ocean's Eleven* (number words and digits are the same title). `SEVEN` used to be named *Scream 7*, the database's first hit.
 - **The year on a label picks the film**: `OCEANS_ELEVEN_2001` is the 2001 film, not the 1960 original.
 - **Music CDs renamed while ripping**: macOS renames a music CD from "Audio CD" to its album a few seconds after it mounts. Spindle took the renamed CD for a second disc and both rips failed (Passenger, *All the Little Lights*). Now the first rip is quietly replaced by one under the new name, and each CD rip stages in its own folder.
 - **Home videos on pressed discs**: a DVD that reports as pressed but has no copy protection and no region lock, and whose label names no film (`5THGRADE2016`, a school video from a duplication service), is imported as a home video. The "Which film is this?" window has an **It's a Home Video** button (re-rips the disc with every recording while it's still being read, else moves the finished rip into Home Videos), and Review Rips has **Home Video** under "Route as". `disc_info.json` now records when the disc was made, so a home video filed later keeps its date.
