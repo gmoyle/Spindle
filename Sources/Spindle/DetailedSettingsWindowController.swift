@@ -25,9 +25,10 @@ class DetailedSettingsWindowController: NSWindowController {
     private var useMakeMKVCheckbox: NSButton!
     private var useMakeMKVForDVDCheckbox: NSButton!
 
-    // Output Directory Section (Content Routing only — the output root itself comes
-    // from the main window, not here).
+    // Output Directory Section: where rips are written, and Content Routing.
     private var outputDirectoryBox: NSBox!
+    /// Where film and TV rips are written before they're routed.
+    private var ripsFolderField: NSTextField!
     private var contentRoutingCheckbox: NSButton!
     private var autoRouteCheckbox: NSButton!
     private var moviesRootField: NSTextField!
@@ -311,9 +312,15 @@ class DetailedSettingsWindowController: NSWindowController {
         sectionStackView.translatesAutoresizingMaskIntoConstraints = false
         outputDirectoryBox.addSubview(sectionStackView)
 
-        // (Default Output Directory / date-subdirectories / output-path-template
-        // controls were removed — never consumed; the real output root comes from
-        // the main window, and directory structure lives in File Storage below.)
+        // Films and TV seasons are ripped here, then routed into their libraries.
+        let ripsLabel = NSTextField(labelWithString: "Rips Folder:")
+        ripsFolderField = NSTextField()
+        ripsFolderField.placeholderString = "~/Movies/Spindle"
+        ripsFolderField.toolTip = "Films and TV seasons are ripped here first, then sorted into the "
+            + "Movies or TV Shows folder (or wait in Review Rips)"
+        let ripsBrowse = NSButton(title: "Browse...", target: self, action: #selector(browseForRipsFolder))
+        sectionStackView.addArrangedSubview(
+            createLabelControlButtonRow(label: ripsLabel, control: ripsFolderField, button: ripsBrowse))
 
         // --- Content Routing: sort finished rips into Movies / TV Shows roots ---
         let routingHeader = NSTextField(labelWithString: "Content Routing (Plex libraries):")
@@ -384,6 +391,10 @@ class DetailedSettingsWindowController: NSWindowController {
 
     @objc private func openTMDBKeyPage() {
         if let url = URL(string: "https://www.themoviedb.org/settings/api") { NSWorkspace.shared.open(url) }
+    }
+
+    @objc private func browseForRipsFolder() {
+        browseForFolder(into: ripsFolderField)
     }
 
     @objc private func browseForMoviesRoot() {
@@ -699,6 +710,7 @@ class DetailedSettingsWindowController: NSWindowController {
         // Content Routing.
         contentRoutingCheckbox.state = settingsManager.contentRoutingEnabled ? .on : .off
         autoRouteCheckbox.state = settingsManager.autoRouteHighConfidence ? .on : .off
+        ripsFolderField.stringValue = settingsManager.lastOutputPath ?? ""
         moviesRootField.stringValue = settingsManager.moviesRootDirectory
         tvShowsRootField.stringValue = settingsManager.tvShowsRootDirectory
         tmdbKeyField?.stringValue = settingsManager.tmdbAPIKey
@@ -830,6 +842,10 @@ class DetailedSettingsWindowController: NSWindowController {
         // Content Routing.
         settingsManager.contentRoutingEnabled = contentRoutingCheckbox.state == .on
         settingsManager.autoRouteHighConfidence = autoRouteCheckbox.state == .on
+        let ripsFolder = ripsFolderField.stringValue.trimmingCharacters(in: .whitespaces)
+        if !ripsFolder.isEmpty {
+            settingsManager.lastOutputPath = NSString(string: ripsFolder).expandingTildeInPath
+        }
         if !moviesRootField.stringValue.isEmpty {
             settingsManager.moviesRootDirectory =
                 NSString(string: moviesRootField.stringValue).expandingTildeInPath

@@ -2,37 +2,89 @@ import Cocoa
 
 // MARK: - Embedded Queue Table
 
+/// One row of the Discs list: a disc in a drive that isn't being ripped, or a
+/// rip (reading, queued, encoding, finished) with its Cancel button.
+struct DiscListRow: Equatable {
+    /// The disc's volume label ("BOFFDEAD").
+    let disc: String
+    /// What it's ripped as ("Better Off Dead (1985)").
+    let title: String
+    let status: String
+    let progress: String
+    let duration: String
+    /// The rip, if there is one.
+    let jobId: UUID?
+    let canCancel: Bool
+    let failed: Bool
+
+    /// Discs in a drive with no rip under way first, then every rip, newest first.
+    static func rows(drives: [OpticalDrive], jobs: [ConversionQueue.ConversionJob]) -> [DiscListRow] {
+        let ordered = MainViewController.newestFirst(jobs)
+        let ripping = Set(ordered.filter { isActive($0.status) }.map(\.sourcePath))
+        let idle = drives.filter { !ripping.contains($0.mountPoint) }.map { drive in
+            DiscListRow(disc: label(drive.mountPoint), title: drive.name,
+                        status: "In drive (\(drive.type.displayName))", progress: "—", duration: "",
+                        jobId: nil, canCancel: false, failed: false)
+        }
+        return idle + ordered.map { job in
+            DiscListRow(disc: label(job.sourcePath), title: job.discTitle, status: job.statusDescription,
+                        progress: progressText(job), duration: job.formattedDuration, jobId: job.id,
+                        canCancel: isActive(job.status), failed: isFailed(job.status))
+        }
+    }
+
+    static func isActive(_ status: ConversionQueue.JobStatus) -> Bool {
+        switch status {
+        case .pending, .extracting, .extracted, .converting: return true
+        default: return false
+        }
+    }
+
+    private static func isFailed(_ status: ConversionQueue.JobStatus) -> Bool {
+        if case .failed = status { return true }
+        return false
+    }
+
+    private static func label(_ path: String) -> String { (path as NSString).lastPathComponent }
+
+    private static func progressText(_ job: ConversionQueue.ConversionJob) -> String {
+        switch job.status {
+        case .extracting, .converting: return "\(Int(job.progress * 100))%"
+        case .completed: return "100%"
+        default: return "—"
+        }
+    }
+}
+
+// MARK: - Discs list
+
 extension MainViewController: NSTableViewDataSource, NSTableViewDelegate {
 
+    /// Rebuild the Discs list from the drives and the queue.
+    func reloadDiscList() {
+        discRows = DiscListRow.rows(drives: detectedDrives, jobs: queueJobs)
+        queueTableView?.reloadData()
+    }
+
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return queueJobs.count
+        return discRows.count
     }
 
     func tableView(_ tableView: NSTableView,
                    viewFor tableColumn: NSTableColumn?,
                    row: Int) -> NSView? {
-        guard row < queueJobs.count, let columnId = tableColumn?.identifier.rawValue else { return nil }
-        let job = queueJobs[row]
+        guard row < discRows.count, let columnId = tableColumn?.identifier.rawValue else { return nil }
+        let item = discRows[row]
+        if columnId == "cancel" { return cancelButton(for: item, row: row) }
 
         let text: String
         switch columnId {
-        case "title":
-            text = job.discTitle
-        case "status":
-            text = job.statusDescription
-        case "progress":
-            switch job.status {
-            case .extracting, .converting:
-                text = "\(Int(job.progress * 100))%"
-            case .completed:
-                text = "100%"
-            default:
-                text = "—"
-            }
-        case "duration":
-            text = job.formattedDuration
-        default:
-            text = ""
+        case "disc": text = item.disc
+        case "title": text = item.title
+        case "status": text = item.status
+        case "progress": text = item.progress
+        case "duration": text = item.duration
+        default: text = ""
         }
 
         let cellId = NSUserInterfaceItemIdentifier("queueCell_\(columnId)")
@@ -55,12 +107,29 @@ extension MainViewController: NSTableViewDataSource, NSTableViewDelegate {
             ])
         }
         cell.textField?.stringValue = text
-        if case .failed = job.status, columnId == "status" {
-            cell.textField?.textColor = .systemRed
-        } else {
-            cell.textField?.textColor = .labelColor
-        }
+        cell.textField?.toolTip = text
+        cell.textField?.textColor = item.failed && columnId == "status" ? .systemRed : .labelColor
         return cell
+    }
+
+    /// The row's Cancel button: only a rip that's queued, reading or encoding
+    /// has one.
+    private func cancelButton(for item: DiscListRow, row: Int) -> NSView? {
+        guard item.canCancel else { return nil }
+        let button = NSButton(title: "Cancel", target: self, action: #selector(cancelDiscRow(_:)))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        button.tag = row
+        button.toolTip = "Stop ripping \(item.title)"
+        return button
+    }
+
+    @objc func cancelDiscRow(_ sender: NSButton) {
+        guard sender.tag >= 0, sender.tag < discRows.count, let id = discRows[sender.tag].jobId,
+              let job = conversionQueue.getJob(id: id), DiscListRow.isActive(job.status) else { return }
+        appendToLog("Cancelling \(job.discTitle)...")
+        conversionQueue.cancelJob(id: id)
     }
 
     // MARK: Context menu
@@ -79,8 +148,8 @@ extension MainViewController: NSTableViewDataSource, NSTableViewDelegate {
 
     private var clickedQueueJob: ConversionQueue.ConversionJob? {
         let row = queueTableView.clickedRow
-        guard row >= 0, row < queueJobs.count else { return nil }
-        return queueJobs[row]
+        guard row >= 0, row < discRows.count, let id = discRows[row].jobId else { return nil }
+        return queueJobs.first { $0.id == id }
     }
 
     @objc private func queueCancelJob(_ sender: Any) {

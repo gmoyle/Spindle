@@ -16,10 +16,6 @@ extension MainViewController {
             sourceLabel.bottomAnchor.constraint(equalTo: sourceDropDown.topAnchor, constant: -5),
             sourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
-            // Output Label
-            outputLabel.bottomAnchor.constraint(equalTo: outputPathField.topAnchor, constant: -5),
-            outputLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-
             // Source Path
             sourceDropDown.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 40),
             sourceDropDown.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
@@ -37,19 +33,8 @@ extension MainViewController {
             browseSourceButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             browseSourceButton.widthAnchor.constraint(equalToConstant: 80),
 
-            // Output Path
-            outputPathField.topAnchor.constraint(equalTo: sourceDropDown.bottomAnchor, constant: 20),
-            outputPathField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            outputPathField.trailingAnchor.constraint(
-                equalTo: browseOutputButton.leadingAnchor, constant: -10
-            ),
-
-            browseOutputButton.topAnchor.constraint(equalTo: outputPathField.topAnchor),
-            browseOutputButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            browseOutputButton.widthAnchor.constraint(equalToConstant: 80),
-
             // Automation Settings — three checkboxes stacked, settings button at right
-            autoRipCheckbox.topAnchor.constraint(equalTo: outputPathField.bottomAnchor, constant: 20),
+            autoRipCheckbox.topAnchor.constraint(equalTo: sourceDropDown.bottomAnchor, constant: 20),
             autoRipCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             autoEjectCheckbox.topAnchor.constraint(equalTo: autoRipCheckbox.bottomAnchor, constant: 5),

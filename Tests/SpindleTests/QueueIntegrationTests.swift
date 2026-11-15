@@ -125,7 +125,7 @@ final class QueueIntegrationTests: XCTestCase {
     
     func testMainViewControllerQueueIntegration() {
         // Set up view controller for queue-based ripping
-        viewController.outputPathField.stringValue = testOutputPath
+        viewController.ripsFolderOverride = testOutputPath
         
         // Test adding job through main view controller
         XCTAssertNoThrow({

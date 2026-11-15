@@ -107,6 +107,7 @@ enum TitleRetitler {
                 history.updateOutputLocation(from: folder, to: destination)
                 pending.updateFolder(from: folder, to: destination)
                 MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
+                refreshPoster(in: destination, base: newBase)
                 return destination
             }
             destination = LibraryFiles.uniqueFolderPath(destination, fileManager: fileManager)
@@ -115,7 +116,14 @@ enum TitleRetitler {
         history.updateOutputLocation(from: folder, to: destination)
         pending.updateFolder(from: folder, to: destination)
         MovieNFO.refresh(in: destination, base: newBase, fileManager: fileManager)
+        refreshPoster(in: destination, base: newBase)
         return destination
+    }
+
+    /// The renamed rip is a different film: fetch its poster (not in tests).
+    private static func refreshPoster(in folder: String, base: String) {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        MoviePoster.save(in: folder, libraryName: base)
     }
 
     /// Name a finished rip that has no film name yet (a disc whose label said

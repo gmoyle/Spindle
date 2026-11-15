@@ -66,7 +66,7 @@ extension MainViewController {
     func outputDirectory(for mediaType: DiscKind, homeVideo: HomeVideoInfo?) -> String {
         if homeVideo != nil { return settingsManager.libraryRoot(.homeVideos) }
         if let library = mediaType.library { return settingsManager.libraryRoot(library) }
-        return outputPathField.stringValue
+        return ripsFolder
     }
 
     /// The name shown in the log and the queue.

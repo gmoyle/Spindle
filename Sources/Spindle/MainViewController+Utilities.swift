@@ -315,13 +315,9 @@ extension MainViewController {
     }
 
     func loadSettings() {
-        // Load output path; default so ripping works out of the box
-        if let lastOutputPath = settingsManager.lastOutputPath, !lastOutputPath.isEmpty {
-            outputPathField.stringValue = lastOutputPath
-        } else {
-            let defaultDir = defaultOutputDirectory()
-            outputPathField.stringValue = defaultDir
-            settingsManager.lastOutputPath = defaultDir
+        // A Rips Folder by default, so ripping works out of the box.
+        if settingsManager.lastOutputPath?.isEmpty ?? true, ripsFolderOverride == nil {
+            settingsManager.lastOutputPath = defaultOutputDirectory()
         }
 
         // Load automation settings
@@ -335,7 +331,7 @@ extension MainViewController {
 
     func saveCurrentSettings() {
         let sourcePath = getSelectedSourcePath()
-        let outputPath = outputPathField.stringValue.isEmpty ? nil : outputPathField.stringValue
+        let outputPath = settingsManager.lastOutputPath
         let driveIndex = sourceDropDown.indexOfSelectedItem
 
         settingsManager.saveSettings(

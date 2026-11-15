@@ -29,6 +29,7 @@ class DriveDetector {
     private var isMonitoring = false
     private var mountObserver: NSObjectProtocol?
     private var unmountObserver: NSObjectProtocol?
+    private var renameObserver: NSObjectProtocol?
     private var lastKnownDrives: [OpticalDrive] = []
 
     private init() {}
@@ -68,6 +69,20 @@ class DriveDetector {
             self.handleVolumeUnmount(url: url)
         }
 
+        // macOS renames a music CD from "Audio CD" to its album a few seconds
+        // after mounting it. Report the renamed volume as the disc it now is;
+        // the delegate sees its device is the same and replaces the first rip.
+        renameObserver = nc.addObserver(
+            forName: NSWorkspace.didRenameVolumeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let url = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            let old = notification.userInfo?[NSWorkspace.oldVolumeURLUserInfoKey] as? URL
+            self.handleVolumeRename(from: old, to: url)
+        }
+
         // Check for already-mounted discs at startup — only runs once on launch
         checkAlreadyMountedDiscs()
     }
@@ -77,8 +92,10 @@ class DriveDetector {
         isMonitoring = false
         if let obs = mountObserver { NSWorkspace.shared.notificationCenter.removeObserver(obs) }
         if let obs = unmountObserver { NSWorkspace.shared.notificationCenter.removeObserver(obs) }
+        if let obs = renameObserver { NSWorkspace.shared.notificationCenter.removeObserver(obs) }
         mountObserver = nil
         unmountObserver = nil
+        renameObserver = nil
     }
 
     // MARK: - Volume Event Handlers
@@ -106,6 +123,14 @@ class DriveDetector {
         print("[DriveDetector] ✓ Disc detected: \(drive.displayName) (\(drive.type.displayName))")
         lastKnownDrives.append(drive)
         delegate?.driveDetector(self, didDetectNewDisc: drive)
+    }
+
+    /// A known disc's volume was renamed: forget the old name (without
+    /// reporting an eject; the disc is still in the drive) and detect it anew.
+    private func handleVolumeRename(from old: URL?, to url: URL) {
+        print("[DriveDetector] Volume renamed: \(old?.path ?? "?") → \(url.path)")
+        if let old = old { lastKnownDrives.removeAll { $0.mountPoint == old.path } }
+        handleVolumeMount(url: url)
     }
 
     private func handleVolumeUnmount(url: URL) {

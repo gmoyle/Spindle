@@ -44,9 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔓 Ripping discs one after another
 - **Keep this Mac awake and unlocked while Spindle is open**: a new main-window option (off by default). macOS won't mount or eject discs while the Mac is locked, so with this on the display stays on and the Mac doesn't lock by itself, and you can keep inserting discs without unlocking. Locking it yourself still locks it.
 
+### 🗂 Main window
+- **Discs list**: the main window lists every disc in a drive and every rip, with the disc's label, the name it's ripped as, its status and progress. Each rip that's queued, reading or encoding has its own **Cancel** button, so with two drives you stop just the disc you mean.
+- **Rips Folder moved to Settings** (Output & Routing): where films and TV seasons are ripped before routing. The main window's Output Directory field is gone; it didn't show where music, photo, data or home-video discs go anyway. Your existing folder is kept.
+
+### 🖼 Local metadata
+- **Film posters**: each film's folder gets `poster.jpg`, fetched from OMDb by its IMDb id, for Plex ("Use local assets" / "Prefer local metadata"), Jellyfin and Kodi. Renaming a rip in "Which film is this?" fetches the new film's poster; a second edition keeps the folder's poster. Written under a hidden name and renamed into place.
+- **Home video tags**: home videos ripped from a recordable or home-made disc carry their title and recording date inside the MKV, so Plex's Personal Media library (with "Prefer local metadata") shows them by name and date.
+
 ### 🎬 Film titles
 - **Labels without apostrophes are found**: `OCEANS_ELEVEN_2001` is also searched as "Ocean's Eleven", and `MATRIX_THE` as "The Matrix". Titles are compared without punctuation.
 - **The year on a label picks the film**: `OCEANS_ELEVEN_2001` is the 2001 film, not the 1960 original.
+- **Music CDs renamed while ripping**: macOS renames a music CD from "Audio CD" to its album a few seconds after it mounts. Spindle took the renamed CD for a second disc and both rips failed (Passenger, *All the Little Lights*). Now the first rip is quietly replaced by one under the new name, and each CD rip stages in its own folder.
 - **Home videos on pressed discs**: a DVD that reports as pressed but has no copy protection and no region lock, and whose label names no film (`5THGRADE2016`, a school video from a duplication service), is imported as a home video. The "Which film is this?" window has an **It's a Home Video** button (re-rips the disc with every recording while it's still being read, else moves the finished rip into Home Videos), and Review Rips has **Home Video** under "Route as". `disc_info.json` now records when the disc was made, so a home video filed later keeps its date.
 - **Fewer misnamed films**: packaging words (`16X9`, `LB`, `WIDE`, `NA`, `N_AMERICA`) are left out of the search; sequel numbers are kept and tried as Roman numerals (`AMERICAN_PIE2`, `MI3`); a label cut short is also searched without its last word; and a missing leading "The" no longer stops an exact match (`LONG_KISS_GOODNIGHT`). The lookup now keeps trying until a search finds the exact title, rather than taking the first search that finds anything (`MI3` found a Spanish film). Studio names (`SONY`) and `UNDEFINED` count as not naming the film.
 - **Labels that find nothing ask for a name**: such a disc used to be filed quietly under its raw label (`FIGHTCLB`). Now the "Which film is this?" window opens with the label in its search box.
