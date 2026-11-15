@@ -51,6 +51,10 @@ extension MainViewController {
             reviewRipsButton.centerYAnchor.constraint(equalTo: settingsButton.centerYAnchor),
             reviewRipsButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor, constant: -8),
 
+            // Import Media under Settings
+            importMediaButton.topAnchor.constraint(equalTo: settingsButton.bottomAnchor, constant: 6),
+            importMediaButton.trailingAnchor.constraint(equalTo: settingsButton.trailingAnchor),
+
             keepAwakeCheckbox.topAnchor.constraint(equalTo: skipRippedCheckbox.bottomAnchor, constant: 5),
             keepAwakeCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 

@@ -59,6 +59,14 @@ extension MainViewController {
     ///   still be catching up).
     func ejectWhenPossible(devicePath: String, name: String, retries: Int = 0,
                            completion: ((Bool) -> Void)? = nil) {
+        // Import Media has nothing to eject: the import is simply done.
+        if ImportSources.shared.source(forDevice: devicePath) != nil {
+            DispatchQueue.main.async {
+                _ = self.finishImport(device: devicePath)
+                completion?(true)
+            }
+            return
+        }
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self = self else { return }
             let ejected = self.ejectDisk(at: devicePath)

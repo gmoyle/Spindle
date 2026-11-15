@@ -329,6 +329,9 @@ final class MakeMKVBackend {
                                       minLengthSeconds: minLengthSeconds, titleSpec: titleSpec,
                                       onStatus: onStatus, onProgress: onProgress)
         }
+        if ImportSources.shared.contains(discPath) {
+            return try whileNoDiscIsRead(discPath, onStatus: onStatus) { try attempt(opened.spec) }
+        }
         do {
             return try attempt(opened.spec)
         } catch let error as MakeMKVError where opened.byDevice && Self.isOpenFailure(error) && !cancelledFlag() {
@@ -374,6 +377,8 @@ final class MakeMKVBackend {
     /// drive is being read the disc is opened by its device instead.
     private func openSpec(for discPath: String, makemkvcon exe: String) throws -> (spec: String, byDevice: Bool) {
         if discPath.hasPrefix("/dev/") { return ("dev:\(discPath)", true) }
+        // Import Media: a folder or mounted image, opened as files, never via a drive.
+        if let spec = ImportSources.shared.makeMKVSpec(for: discPath) { return (spec, false) }
         if let spec = Self.deviceSpec(for: discPath) { return (spec, true) }
         return try DiscReads.shared.enumerating {
             // Another read may have begun while this waited for the lock.
@@ -611,6 +616,12 @@ final class MakeMKVBackend {
     /// NOTE: this opens the drive, so never call it while a rip is active — see
     /// the drive-contention notes on `rip`.
     func scanTitleDurations(for discPath: String) -> [Int] {
+        guard ImportSources.shared.contains(discPath) else { return scanTitleDurationsNow(for: discPath) }
+        let scan = { self.scanTitleDurationsNow(for: discPath) }
+        return (try? whileNoDiscIsRead(discPath, onStatus: { _ in }, scan)) ?? []
+    }
+
+    private func scanTitleDurationsNow(for discPath: String) -> [Int] {
         guard let exe = Self.executablePath(),
               let discSpec = (try? openSpec(for: discPath, makemkvcon: exe).spec) ?? soleDriveFallback(discPath)
         else { return [] }
@@ -646,6 +657,38 @@ final class MakeMKVBackend {
     func scanTitles(for discPath: String,
                     onStatus: @escaping (String) -> Void = { _ in },
                     onProgress: @escaping (Double) -> Void = { _ in }) throws -> [Title] {
+        guard ImportSources.shared.contains(discPath) else {
+            return try scanTitlesNow(for: discPath, onStatus: onStatus, onProgress: onProgress)
+        }
+        return try whileNoDiscIsRead(discPath, onStatus: onStatus) {
+            try scanTitlesNow(for: discPath, onStatus: onStatus, onProgress: onProgress)
+        }
+    }
+
+    /// makemkvcon opens every optical drive when it starts, even to read
+    /// files (`--noscan` doesn't stop it), which would contend with a disc
+    /// being ripped. So for an import (Import Media) run it only while no disc
+    /// is being read, holding the enumeration lock so none starts meanwhile.
+    private func whileNoDiscIsRead<T>(_ discPath: String, onStatus: (String) -> Void,
+                                      _ body: () throws -> T) throws -> T {
+        var told = false
+        while true {
+            if cancelledFlag() { throw MakeMKVError.cancelled }
+            let result: T? = try DiscReads.shared.enumerating {
+                DiscReads.shared.othersReading(than: discPath) ? nil : try body()
+            }
+            if let result = result { return result }
+            if !told {
+                onStatus("Waiting for the disc being ripped to finish (MakeMKV would open its drive)...")
+                told = true
+            }
+            Thread.sleep(forTimeInterval: 3)
+        }
+    }
+
+    private func scanTitlesNow(for discPath: String,
+                               onStatus: @escaping (String) -> Void,
+                               onProgress: @escaping (Double) -> Void) throws -> [Title] {
         guard let exe = Self.executablePath() else { throw MakeMKVError.notInstalled }
         guard let discSpec = (try? openSpec(for: discPath, makemkvcon: exe).spec) ?? soleDriveFallback(discPath) else {
             throw MakeMKVError.discOpenFailed("No MakeMKV drive matched \((discPath as NSString).lastPathComponent)")

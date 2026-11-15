@@ -16,9 +16,10 @@ the [Installation Guide](INSTALLATION.md).
 7. [TV series](#tv-series)
 8. [Music CDs](#music-cds)
 9. [Photo, home-video and data discs](#photo-home-video-and-data-discs)
-10. [Encoding](#encoding)
-11. [Scripts](#scripts)
-12. [Troubleshooting](#troubleshooting)
+10. [Import Media](#import-media)
+11. [Encoding](#encoding)
+12. [Scripts](#scripts)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -339,6 +340,41 @@ can be filed with **Home Video** under "Route as".
 the disc; any that can't be read (a scratched disc) are listed in
 `Unreadable files.txt` in that folder. Inserting the same disc again updates its
 folder; a different disc with the same name gets ` (2)`.
+
+## Import Media
+
+**Import Media…** (under Settings in the main window) imports discs you've
+already copied, and photos and files from a drive or folder, as if each were a
+disc in the drive. Choose a drive, one or more folders, or disc images. Spindle
+looks through them and asks before importing, listing what it found:
+
+- **Copied discs**: a folder holding `VIDEO_TS` (DVD), `BDMV` (Blu-ray) or
+  `HVDVD_TS` (HD DVD) is ripped like the disc. The folder's name is looked up as
+  the disc's label would be (`Heat (1995)` finds the film), and the rip is
+  named, encoded and filed in Movies or TV Shows. You can choose the
+  `VIDEO_TS` folder itself, or its parent.
+- **Disc images** (`.iso`, `.img`) are mounted read-only, out of the Finder's
+  sight, ripped the same way, and unmounted afterwards. The image's file name is
+  its label.
+- **Folders of photos** are filed by date like a photo disc, skipping any photo
+  already in the library.
+- **Other folders** are copied into `Imported Discs/<folder name>/`.
+
+A folder holding copied discs or images is searched through. Its other
+subfolders are imported on their own, and files lying beside the discs are left
+alone (the confirmation says how many); choose their folder by itself to
+import them.
+
+Imports are read one at a time. Each shows as a line at the top of the window,
+with a Cancel, and appears in the Discs list like a disc. Anything imported
+before is skipped, as a re-inserted disc is.
+
+Copied DVD folders and Blu-rays are read with MakeMKV, which must be installed.
+MakeMKV opens the optical drives whenever it runs, even to read files, and that
+can spoil a disc being ripped. So an import that uses MakeMKV waits while a
+disc is being ripped, and a disc inserted during such an import waits for it.
+Disc images of DVDs are read without MakeMKV (unless Settings has DVDs ripped with
+MakeMKV), so they don't wait.
 
 ## Encoding
 

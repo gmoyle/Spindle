@@ -69,7 +69,10 @@ extension MediaRipper {
         // remuxes the title without re-encoding. Titles it can't stage fall
         // back to the libdvdcss reader below.
         var staged: [Int: String] = [:]   // plan index -> staged MKV from MakeMKV
-        if SettingsManager.shared.useMakeMKVForDVD && MakeMKVBackend.isInstalled {
+        // An imported DVD folder can only be read by MakeMKV: it has no device.
+        let folderImport = ImportSources.shared.isFolder(dvdPath)
+        if folderImport && !MakeMKVBackend.isInstalled { throw MediaRipperError.importNeedsMakeMKV }
+        if (SettingsManager.shared.useMakeMKVForDVD || folderImport) && MakeMKVBackend.isInstalled {
             do {
                 staged = try stageDVDTitlesWithMakeMKV(dvdPath: dvdPath, plans: plans)
             } catch let error as MakeMKVBackend.MakeMKVError {
@@ -484,6 +487,12 @@ extension MediaRipper {
     func findRawDVDDevice(dvdPath: String) -> String? {
         // Already a raw device
         if dvdPath.hasPrefix("/dev/r") { return dvdPath }
+        // An imported folder has no device: diskutil would name the disk the
+        // folder is on. A mounted image's own device is fine.
+        if let source = ImportSources.shared.source(at: dvdPath) {
+            guard source.imagePath != nil else { return nil }
+            return source.devicePath.replacingOccurrences(of: "/dev/disk", with: "/dev/rdisk")
+        }
         // Block device -> convert to raw
         if dvdPath.hasPrefix("/dev/disk") {
             return dvdPath.replacingOccurrences(of: "/dev/disk", with: "/dev/rdisk")

@@ -206,6 +206,9 @@ extension MainViewController: ConversionQueueDelegate {
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
         dropTitleChoice(forJob: jobId)
+        if let job = conversionQueue.getAllJobs().first(where: { $0.id == jobId }) {
+            finishImport(at: job.sourcePath)
+        }
         // Replaced by a rip of the same disc under its new name: not a failure.
         if supersededJobs.remove(jobId) == nil {
             appendToLog(logLine("Rip failed: \(error.localizedDescription)", forJob: jobId))
