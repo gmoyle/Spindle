@@ -25,8 +25,17 @@ final class TitleChooserWindowController: NSWindowController {
     private let keepTitle: String
     /// Offer "It's a Home Video" (a disc being ripped, not a rip being named).
     private let offersHomeVideo: Bool
+    /// The queue job being named, when opened from the Discs list.
+    var jobId: UUID?
+    /// The finished rip's folder being named, if it's finished.
+    var folder: String?
     /// Called when the user says the disc is a home video.
     var onHomeVideo: (() -> Void)?
+    /// Offer "This disc is: the film / Part N / Bonus disc".
+    private let offersParts: Bool
+    let partMenu = NSPopUpButton()
+    /// The menu's choices, in order.
+    static let partChoices: [DiscPart?] = [nil, .part(1), .part(2), .part(3), .part(4), .bonus]
 
     /// - Parameter discOwnName: the label as a film name, offered as a choice
     ///   (nil for a generic label, which isn't worth offering).
@@ -35,12 +44,13 @@ final class TitleChooserWindowController: NSWindowController {
     ///   - keepTitle: the title of the button that keeps the current name.
     ///   - searchText: a search to run straight away.
     init(choice: TitleChoice, discOwnName: String?, intro: String? = nil, keepTitle: String = "Use Guess",
-         searchText: String? = nil, offersHomeVideo: Bool = false) {
+         searchText: String? = nil, offersHomeVideo: Bool = false, offersParts: Bool = false) {
         self.choice = choice
         self.discOwnName = discOwnName
         self.intro = intro
         self.keepTitle = keepTitle
         self.offersHomeVideo = offersHomeVideo
+        self.offersParts = offersParts
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Which film is this?"
@@ -93,6 +103,8 @@ final class TitleChooserWindowController: NSWindowController {
         listStack.spacing = 8
         stack.addArrangedSubview(listStack)
 
+        if offersParts { stack.addArrangedSubview(partRow()) }
+
         // "Use Guess" keeps the name the disc is ripping under; "Use Selected"
         // takes the film picked in the list. No default button: Return in the
         // search box searches.
@@ -121,6 +133,23 @@ final class TitleChooserWindowController: NSWindowController {
         if choice.labelIsGeneric || choice.notFound { window.initialFirstResponder = searchField }
         // Nothing matched the label: start from it, so a fix is a small edit.
         if choice.notFound, let own = discOwnName { searchField.stringValue = own }
+    }
+
+    /// "This disc is: [The film ▾]". Films on more than one disc: Plex plays
+    /// "part1", "part2"… as one film; a bonus disc's videos become extras.
+    private func partRow() -> NSView {
+        partMenu.addItems(withTitles: Self.partChoices.map { $0.map(Self.menuTitle) ?? "The film" })
+        partMenu.selectItem(at: Self.partChoices.firstIndex(of: choice.part) ?? 0)
+        partMenu.toolTip = "For a film on more than one disc: which disc this is, "
+            + "or a bonus disc whose videos are the film's extras"
+        return NSStackView(views: [NSTextField(labelWithString: "This disc is:"), partMenu])
+    }
+
+    static func menuTitle(_ part: DiscPart) -> String {
+        switch part {
+        case .part(let number): return "Disc \(number) of the film"
+        case .bonus: return "A bonus disc (extras only)"
+        }
     }
 
     private var introText: String {
@@ -234,12 +263,22 @@ final class TitleChooserWindowController: NSWindowController {
             showStatus("Search for the film, or type its name and click Use Typed Name.")
             return
         }
-        finish(names[index] == choice.guessedName ? nil : names[index])
+        let name = names[index]
+        finish(name == choice.guessedName && selectedPart == choice.part ? nil : name)
     }
 
-    @objc private func keepGuess() { finish(nil) }
+    /// "Use Guess" keeps the name, but still files the disc as the part picked.
+    @objc private func keepGuess() {
+        finish(intro == nil && selectedPart != choice.part ? choice.guessedName : nil)
+    }
+
+    private var selectedPart: DiscPart? {
+        guard offersParts, partMenu.indexOfSelectedItem >= 0 else { return choice.part }
+        return Self.partChoices[partMenu.indexOfSelectedItem]
+    }
 
     private func finish(_ name: String?) {
+        if name != nil { choice.part = selectedPart }
         onChoose?(name)
         onChoose = nil
         close()

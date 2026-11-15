@@ -112,8 +112,11 @@ swiftlint lint
    - **Photo / data discs** (copy-only): `MediaRipper+PhotoDisc` / `+DataDisc` copy files to
      staging with `VerifiedCopy` (SHA-256 while reading, then re-read) in phase 1 and set
      `postEjectWork`, which `performEncodes` runs in phase 2 to file them
-     (`LibraryFiles.placeFile` / `fileFolder`). Photos are filed by EXIF date and deduped by
-     hash through `PhotoIndex` (`Application Support/Spindle/photo-index.json`); Apple Photos
+     (`LibraryFiles.placeFile` / `fileFolder`). Photos are filed by EXIF date in the library's own layout
+     (`PhotoLibraryNaming`: decade folders `2000-2009/2004/July/2004-07-Wed-153210.jpg` if the root
+     has them, else `2004/2004-07-14/`) and deduped by hash through `PhotoIndex`
+     (`Application Support/Spindle/photo-index.json`) and against every same-size file already in
+     the library (`PhotoLibraryContents`); Apple Photos
      goes through PhotoKit add-only (`ApplePhotosImporter`, injectable in tests). These record
      a history `location` and write no `rip_complete.json`.
    - **Home videos**: `configuration.homeVideo` makes the DVD ripper write straight into

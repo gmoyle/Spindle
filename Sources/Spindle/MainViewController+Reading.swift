@@ -64,6 +64,7 @@ extension MainViewController {
         progressStatusLabel.stringValue = Self.readingLine(
             titles: titles, progress: progress, sizes: readingJobIds.map { readSizes[$0] },
             formatBytes: formatBytes)
+        reloadDiscLines()
     }
 
     /// A status line for the log, named after its disc while several are read.

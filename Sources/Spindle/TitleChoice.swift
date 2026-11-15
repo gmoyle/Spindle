@@ -22,6 +22,11 @@ final class TitleChoice {
     var finishedFolder: String?
     /// What the user picked: a film's "Title (Year)", or the disc's own name.
     var chosenName: String?
+    /// Which disc of the film this is (a part, or extras only); nil for the film.
+    var part: DiscPart?
+    /// The disc's volume label, which picks out its files in a folder it
+    /// shares with another disc of the film.
+    var volumeLabel: String?
 
     /// The guess as shown: "Title (Year)".
     var guessedDisplayName: String { MovieMatch.displayName(ofLibraryName: guessedName) }

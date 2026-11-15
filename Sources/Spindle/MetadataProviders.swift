@@ -250,8 +250,7 @@ enum DiscTitleQuery {
     /// provider's first hit, which is often an older film with a similar name;
     /// with the label's year, a match from that year beats a remake or original.
     static func bestMatch(for query: String, in matches: [MovieMatch], year: String? = nil) -> MovieMatch? {
-        let wanted = normalized(query)
-        let sameTitle = matches.filter { normalized($0.title) == wanted }
+        let sameTitle = matches.filter { isSameTitle($0.title, query) }
         let fromYear: (MovieMatch) -> Bool = { match in
             guard let year = year, let matchYear = match.year else { return false }
             return matchYear.hasPrefix(year)
@@ -297,13 +296,48 @@ enum DiscTitleQuery {
 
     static func resolve(query: String, matches: [MovieMatch], year: String? = nil) -> Resolution? {
         guard let best = bestMatch(for: query, in: matches, year: year) else { return nil }
-        let wanted = normalized(query)
-        let sameTitle = matches.filter { normalized($0.title) == wanted }
+        let sameTitle = matches.filter { isSameTitle($0.title, query) }
         let fromYear = sameTitle.filter { match in year.map { match.year?.hasPrefix($0) ?? false } ?? true }
         let confident = year == nil ? sameTitle.count == 1 : fromYear.count == 1
         var choices = [best]
         for match in matches where choices.count < maxChoices && !choices.contains(match) { choices.append(match) }
         return Resolution(best: best, choices: choices, isConfident: confident)
+    }
+
+    /// Whether a film's title is the one a label names. Beyond `normalized`,
+    /// a label spells out what a title writes another way: "SEVEN" is "Se7en"
+    /// (a digit standing in for letters), "OCEANS_11" is "Ocean's Eleven".
+    static func isSameTitle(_ title: String, _ label: String) -> Bool {
+        let title = normalized(title), label = normalized(label)
+        if title == label || numbersAsDigits(title) == numbersAsDigits(label) { return true }
+        return digitsStandInForLetters(title, label)
+    }
+
+    private static let numberWords = ["one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6",
+                                      "seven": "7", "eight": "8", "nine": "9", "ten": "10", "eleven": "11",
+                                      "twelve": "12", "thirteen": "13"]
+
+    /// "oceans eleven" → "oceans 11".
+    private static func numbersAsDigits(_ title: String) -> String {
+        title.split(separator: " ").map { numberWords[String($0)] ?? String($0) }.joined(separator: " ")
+    }
+
+    /// "se7en" for "seven": word by word, a title word with a digit among its
+    /// letters matches a label word that has the digit's name in its place
+    /// ("7" for "v"). Only one-character stand-ins, and every other letter equal.
+    private static func digitsStandInForLetters(_ title: String, _ label: String) -> Bool {
+        let titleWords = title.split(separator: " "), labelWords = label.split(separator: " ")
+        guard titleWords.count == labelWords.count, title != label else { return false }
+        var substituted = false
+        for (titleWord, labelWord) in zip(titleWords, labelWords) where titleWord != labelWord {
+            let hasLetters = titleWord.contains(where: \.isLetter)
+            guard hasLetters, titleWord.count == labelWord.count else { return false }
+            for (t, l) in zip(titleWord, labelWord) where t != l {
+                guard t.isNumber, l.isLetter else { return false }
+                substituted = true
+            }
+        }
+        return substituted
     }
 
     /// Lowercased, apostrophes dropped, "&" as "and", other punctuation as

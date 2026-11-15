@@ -176,4 +176,27 @@ final class ManualTitleTests: XCTestCase {
         chooser.useTypedName()
         XCTAssertEqual(chosen, "Something's Gotta Give (2003)")
     }
+
+    // MARK: - Titles a label spells another way
+
+    func testSevenIsSe7enNotScream7() {
+        // TMDB's first hit for "SEVEN" is a new sequel; the film is spelled with a digit.
+        let matches = [MovieMatch(title: "Scream 7", year: "2026"), MovieMatch(title: "Se7en", year: "1995"),
+                       MovieMatch(title: "Seven Pounds", year: "2008")]
+        let resolution = DiscTitleQuery.resolve(query: "SEVEN", matches: matches)
+        XCTAssertEqual(resolution?.best.title, "Se7en")
+        XCTAssertEqual(resolution?.isConfident, true)
+    }
+
+    func testSameTitleSpelledAnotherWay() {
+        XCTAssertTrue(DiscTitleQuery.isSameTitle("Se7en", "SEVEN"))
+        XCTAssertTrue(DiscTitleQuery.isSameTitle("Ocean's Eleven", "OCEANS 11"))
+        XCTAssertTrue(DiscTitleQuery.isSameTitle("Ocean's 11", "OCEANS ELEVEN"))
+        XCTAssertTrue(DiscTitleQuery.isSameTitle("The Matrix", "MATRIX"))
+        XCTAssertFalse(DiscTitleQuery.isSameTitle("Scream 7", "SEVEN"))
+        XCTAssertFalse(DiscTitleQuery.isSameTitle("Seven Pounds", "SEVEN"))
+        XCTAssertFalse(DiscTitleQuery.isSameTitle("Se7en", "SEVENS"), "lengths differ")
+        XCTAssertFalse(DiscTitleQuery.isSameTitle("2012", "XXXX"), "a number isn't a stand-in")
+        XCTAssertFalse(DiscTitleQuery.isSameTitle("Seven", "Se7en"), "only the title may use a digit")
+    }
 }

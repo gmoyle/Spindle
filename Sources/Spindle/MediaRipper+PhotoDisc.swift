@@ -4,7 +4,8 @@ import Foundation
 /// Phase 1 copies each photo and camera clip to local staging, checking each
 /// copy against the disc, and drops duplicates of photos already imported; the
 /// disc can then eject. Phase 2 files the copies by the date each was taken,
-/// into `Photos/2004/2004-07-14/`, Apple Photos, or both.
+/// into the Photos folder as it's already laid out (`PhotoLibraryNaming`),
+/// skipping photos already in it, and/or into Apple Photos.
 extension MediaRipper {
 
     enum PhotoDiscError: LocalizedError {
@@ -102,6 +103,7 @@ extension MediaRipper {
     static func filePhotos(_ photos: [StagedPhoto], destination: PhotoDestination, root: String,
                            index: PhotoIndex,
                            importToApplePhotos: ([String]) throws -> Void = ApplePhotosImporter.importFiles,
+                           library: PhotoLibraryContents? = nil,
                            fileManager: FileManager = .default) throws -> PostEjectResult {
         var useFolder = destination.includesFolder
         var notes: [String] = []
@@ -131,24 +133,44 @@ extension MediaRipper {
         var filed: [String] = []
         if useFolder {
             guard !root.isEmpty else { throw ContentRouter.RouteError.moveFailed("No Photos folder is set.") }
-            for photo in photos where !index.isInFolder(photo.hash, fileManager: fileManager) {
-                let folder = PhotoLibraryNaming.folder(for: photo.date, in: root)
-                try fileManager.createDirectory(atPath: folder, withIntermediateDirectories: true)
-                let target = (folder as NSString).appendingPathComponent((photo.path as NSString).lastPathComponent)
-                // Imported before Spindle kept an index: same name, same content.
-                if fileManager.fileExists(atPath: target), (try? VerifiedCopy.sha256(of: target)) == photo.hash {
-                    index.record(hash: photo.hash, path: target)
-                    continue
-                }
-                let placed = try LibraryFiles.placeFile(photo.path, at: target, replacing: false,
-                                                        fileManager: fileManager)
-                index.record(hash: photo.hash, path: placed)
-                filed.append(placed)
-            }
+            let toFile = photos.filter { !index.isInFolder($0.hash, fileManager: fileManager) }
+            let (placed, alreadyThere) = try fileInFolder(toFile, root: root, index: index,
+                                                         library: library, fileManager: fileManager)
+            filed = placed
             notes.insert("\(filed.count) filed in \(root)", at: 0)
+            if alreadyThere > 0 { notes.insert("\(alreadyThere) already in the library", at: 1) }
         }
         index.save()
         return PostEjectResult(files: filed, location: useFolder ? root : "Apple Photos",
                                summary: "Photos: " + notes.joined(separator: "; "))
+    }
+
+    /// File photos into the Photos folder the way it's already laid out,
+    /// skipping any already in it under another name or date. Returns the
+    /// files placed and how many were already there.
+    static func fileInFolder(_ photos: [StagedPhoto], root: String, index: PhotoIndex,
+                             library: PhotoLibraryContents?, fileManager: FileManager)
+        throws -> (placed: [String], alreadyThere: Int) {
+        guard !photos.isEmpty else { return ([], 0) }
+        let layout = PhotoLibraryNaming.layout(of: root, fileManager: fileManager)
+        let contents = library ?? PhotoLibraryContents(root: root, fileManager: fileManager)
+        var placed: [String] = []
+        var alreadyThere = 0
+        for photo in photos {
+            if let existing = contents.copy(of: photo.path, hash: photo.hash) {
+                index.record(hash: photo.hash, path: existing)
+                alreadyThere += 1
+                continue
+            }
+            let wanted = PhotoLibraryNaming.path(for: photo.path, date: photo.date, in: root, layout: layout)
+            try fileManager.createDirectory(atPath: (wanted as NSString).deletingLastPathComponent,
+                                            withIntermediateDirectories: true)
+            let target = PhotoLibraryNaming.freePath(wanted, layout: layout, fileManager: fileManager)
+            let path = try LibraryFiles.placeFile(photo.path, at: target, replacing: false, fileManager: fileManager)
+            index.record(hash: photo.hash, path: path)
+            contents.add(path, hash: photo.hash)
+            placed.append(path)
+        }
+        return (placed, alreadyThere)
     }
 }

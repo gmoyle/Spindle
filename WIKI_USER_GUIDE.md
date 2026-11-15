@@ -106,6 +106,27 @@ Return to search again, or click **Use Typed Name** to name it exactly as typed.
 year at the end becomes `(Year)`: "Something's Gotta Give 2003" names it
 `Something's Gotta Give (2003)`.
 
+**The Discs list** shows the discs in the drives, this session's rips, and every
+earlier rip (from Spindle's rip history), so it survives restarts and updates. Right-click
+an earlier rip to name it, show it in Finder, or remove it from the list (the disc is
+still skipped as already ripped).
+
+**Wrong name, or noticed it later?** Double-click a rip in the Discs list (or
+right-click it and choose **Which Film Is This…**) to open the same window for a
+rip that's reading, encoding or finished. A finished rip is renamed straight away;
+one still ripping is renamed when it finishes. The list shows the new name at once.
+
+**Films on more than one disc.** The window's **This disc is:** menu says which disc
+of the film this is:
+- **Disc 1 of the film**, **Disc 2 of the film**…: the discs file into one folder
+  as `Title (Year) - part1.mkv`, `Title (Year) - part2.mkv`, which Plex plays as
+  one film. A film already there from the other disc becomes `part1`.
+- **A bonus disc (extras only)**: its videos go into the film's `Featurettes`
+  folder, which Plex shows as the film's extras, not as another version of it.
+
+This also fixes a second disc that was filed beside the film as an edition
+("Version 2").
+
 Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS`, a catalog number such as
 `23604`, the studio (`SONY`, `WARNER`), `UNDEFINED`, or similar, which says nothing about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
@@ -278,11 +299,21 @@ folder, a Kodak Picture CD, a disc of JPEG, HEIC or RAW files):
    against the original. Other files (viewer programs, `autorun.inf`) are left on
    the disc. Then the disc ejects.
 3. Photos are filed by the date they were taken (from the camera's EXIF data, or
-   the file's date) as `Photos/2004/2004-07-14/IMG_0001.JPG`. Photos with no date go
-   in `Photos/Undated/`. A different photo with the same name gets ` (2)`.
+   the file's date), following the layout your Photos folder already has:
+   - If it has decade folders (`2000-2009`, `2010-2019`, and perhaps `~ To 1979`
+     for the oldest), each photo goes in `2000-2009/2004/July/` and is named by
+     the time it was taken, e.g. `2004-07-Wed-153210.jpg`. Two photos from the same
+     second become `…(1).jpg`.
+   - Otherwise photos go in `Photos/2004/2004-07-14/` and keep their names
+     (`IMG_0001.JPG`). A different photo with the same name gets ` (2)`.
 
-Spindle remembers each photo it has imported by its content, so the same photo on
-another disc, or twice on one disc, is imported only once. Apple Photos asks for
+   Photos with no date go in `Photos/Undated/`.
+
+Spindle won't import a photo that's already in the Photos folder, even under another
+name or in another folder: before filing, it compares each photo with every file of
+the same size in the library (the NAS's recycle bin is ignored). It also remembers
+each photo it has imported by its content, so the same photo on another disc, or
+twice on one disc, is imported only once. Apple Photos asks for
 permission the first time. If you don't allow it, the photos go to the Photos folder
 instead, so nothing is lost.
 
