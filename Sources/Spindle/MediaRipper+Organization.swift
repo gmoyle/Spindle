@@ -294,13 +294,18 @@ extension MediaRipper {
     func createDiscInfo(in directory: String, mediaPath: String, mediaType: MediaType, movieName: String,
                         libraryName: String? = nil) {
         if let name = libraryName { MovieNFO.write(in: directory, base: name) }
-        let discInfo: [String: Any] = [
+        var discInfo: [String: Any] = [
             "movie_name": movieName,
             "media_type": mediaType.folderName,
             "rip_date": ISO8601DateFormatter().string(from: Date()),
             "source_path": mediaPath,
             "ripper_version": "Spindle"
         ]
+        // When the disc was made: dates a home video filed after the disc is gone.
+        if let created = (try? URL(fileURLWithPath: mediaPath).resourceValues(forKeys: [.volumeCreationDateKey]))?
+            .volumeCreationDate {
+            discInfo[HomeVideoFiler.discCreatedKey] = ISO8601DateFormatter().string(from: created)
+        }
 
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: discInfo, options: .prettyPrinted)

@@ -23,6 +23,10 @@ final class TitleChooserWindowController: NSWindowController {
     private let intro: String?
     /// The button that keeps the current name.
     private let keepTitle: String
+    /// Offer "It's a Home Video" (a disc being ripped, not a rip being named).
+    private let offersHomeVideo: Bool
+    /// Called when the user says the disc is a home video.
+    var onHomeVideo: (() -> Void)?
 
     /// - Parameter discOwnName: the label as a film name, offered as a choice
     ///   (nil for a generic label, which isn't worth offering).
@@ -31,11 +35,12 @@ final class TitleChooserWindowController: NSWindowController {
     ///   - keepTitle: the title of the button that keeps the current name.
     ///   - searchText: a search to run straight away.
     init(choice: TitleChoice, discOwnName: String?, intro: String? = nil, keepTitle: String = "Use Guess",
-         searchText: String? = nil) {
+         searchText: String? = nil, offersHomeVideo: Bool = false) {
         self.choice = choice
         self.discOwnName = discOwnName
         self.intro = intro
         self.keepTitle = keepTitle
+        self.offersHomeVideo = offersHomeVideo
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Which film is this?"
@@ -95,6 +100,11 @@ final class TitleChooserWindowController: NSWindowController {
         if self.intro == nil { keep.toolTip = "Keep \(choice.guessedDisplayName), the name the disc is ripping under" }
         let use = NSButton(title: "Use Selected", target: self, action: #selector(useSelection))
         let buttons = NSStackView(views: [keep, use])
+        if offersHomeVideo {
+            let home = NSButton(title: "It's a Home Video", target: self, action: #selector(markHomeVideo))
+            home.toolTip = "Not a film: rip every recording on the disc into Home Videos, named by date"
+            buttons.insertView(home, at: 0, in: .leading)
+        }
         buttons.spacing = 8
         stack.addArrangedSubview(buttons)
 
@@ -193,6 +203,13 @@ final class TitleChooserWindowController: NSWindowController {
                 self.showMatches(ordered)
             }
         }
+    }
+
+    @objc func markHomeVideo() {
+        onHomeVideo?()
+        onHomeVideo = nil
+        onChoose = nil
+        close()
     }
 
     @objc func useTypedName() {

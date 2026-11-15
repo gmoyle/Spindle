@@ -58,7 +58,12 @@ extension MainViewController {
             : "Not sure which film \(drive.name) is; ripping it as \(choice.guessedDisplayName). "
               + "Pick the right one in the “Which film is this?” window.")
 
-        let chooser = TitleChooserWindowController(choice: choice, discOwnName: discOwnName)
+        let chooser = TitleChooserWindowController(choice: choice, discOwnName: discOwnName,
+                                                   offersHomeVideo: drive.type == .dvd)
+        chooser.onHomeVideo = { [weak self, weak choice] in
+            guard let self = self, let choice = choice else { return }
+            self.fileAsHomeVideo(choice)
+        }
         chooser.onChoose = { [weak self, weak choice] (name: String?) in
             guard let self = self, let choice = choice else { return }
             guard let name = name else {
@@ -107,12 +112,17 @@ extension MainViewController {
         if let choice = titleChoices.first(where: { $0.jobId == jobId }) { dropTitleChoice(choice) }
     }
 
-    private func dropTitleChoice(_ choice: TitleChoice) {
+    func dropTitleChoice(_ choice: TitleChoice) {
         titleChoices.removeAll { $0 === choice }
         titleChooserWindows.removeAll { $0.window?.isVisible != true }
     }
 
-    private func applyTitleChoiceIfReady(_ choice: TitleChoice) {
+    func applyTitleChoiceIfReady(_ choice: TitleChoice) {
+        if choice.homeVideo, let folder = choice.finishedFolder {
+            dropTitleChoice(choice)
+            fileFinishedRipAsHomeVideo(folder: folder, discName: choice.discName)
+            return
+        }
         guard let name = choice.chosenName, let folder = choice.finishedFolder else { return }
         dropTitleChoice(choice)
         let oldName = choice.guessedName

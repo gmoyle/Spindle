@@ -14,6 +14,8 @@ final class TitleChoice {
     let labelIsGeneric: Bool
     /// The label was looked up and nothing matched ("FIGHTCLB").
     var notFound = false
+    /// The user said it's a home video: file it in Home Videos, not as a film.
+    var homeVideo = false
     /// The queue job ripping the disc.
     var jobId: UUID?
     /// Set once the rip finished: the folder its files ended up in.

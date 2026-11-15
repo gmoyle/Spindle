@@ -53,8 +53,9 @@ extension MainViewController {
     /// Home Videos and named by date, with no title lookup or Movie/TV routing.
     func homeVideoInfo(for mediaType: DiscKind, mountPoint: String?) -> HomeVideoInfo? {
         guard mediaType == .dvd, let mountPoint = mountPoint,
-              HomeVideoDetector.isHomeVideo(kind: mediaType,
-                                            opticalMediaType: DriveDetector.opticalMediaType(at: mountPoint))
+              homeVideoMounts.contains(mountPoint)
+                || HomeVideoDetector.isHomeVideo(kind: mediaType,
+                                                 opticalMediaType: DriveDetector.opticalMediaType(at: mountPoint))
         else { return nil }
         return HomeVideoDetector.info(forDiscAt: mountPoint)
     }

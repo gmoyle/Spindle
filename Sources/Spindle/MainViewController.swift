@@ -70,6 +70,9 @@ class MainViewController: NSViewController {
     internal var resolvedLibraryName: String?
     /// The album for an audio CD in the drive, once MusicBrainz has answered.
     internal var resolvedAlbum: AlbumRelease? = nil
+    /// Discs (by mount point) to import as home videos though they're pressed:
+    /// detected as home-made, or marked so in the "Which film is this?" window.
+    internal var homeVideoMounts: Set<String> = []
 
     // DVD Ripper
     internal var dvdRipper: DVDRipper!
@@ -595,7 +598,7 @@ class MainViewController: NSViewController {
         sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - \(status)"
     }
 
-    private func updateDriveDropdown() {
+    func updateDriveDropdown() {
         // Update the source label to show current disc status
         if detectedDrives.isEmpty {
             resolvedDiscTitle = nil
@@ -749,38 +752,15 @@ extension MainViewController: DriveDetectorDelegate {
                 }
                 return
             }
-            // A label like DVD_VIDEO names the format, not the film: searching it
-            // only finds unrelated titles. Rip under a placeholder and ask.
-            let rawLabel = (drive.mountPoint as NSString).lastPathComponent
-            if DiscTitleQuery.isGenericLabel(rawLabel) {
-                let placeholder = DiscTitleQuery.placeholderName()
-                self.resolvedDiscTitle = placeholder
-                self.rememberLookup(for: drive)
-                self.updateDriveDropdown()
-                self.autoStartRipping(for: drive)
-                self.askWhichFilm(forGenericLabelDisc: drive, placeholder: placeholder)
+            // A pressed DVD may still be home-made (a school video from a
+            // duplication service): check before looking it up as a film.
+            if drive.type == .dvd {
+                self.checkForHomeMadeDisc(drive) { homeMade in
+                    self.identifyFilm(on: drive, homeVideoIfUnfound: homeMade)
+                }
                 return
             }
-            self.lookupDiscTitle(volumeName: drive.name) { resolution in
-                // Nothing found for a film's label: rip under the label as a film
-                // name and ask. A TV disc keeps its label ("FIREFLY_D1"), so its
-                // discs don't share a folder.
-                let unfoundName = Self.unfoundRipName(forLabel: drive.name)
-                let title = resolution?.best.displayName ?? unfoundName
-                self.resolvedDiscTitle = title
-                self.resolvedLibraryName = resolution?.best.libraryName
-                self.rememberLookup(for: drive)
-                self.updateDriveDropdown()
-                if let resolution = resolution, let t = title {
-                    self.appendToLog(resolution.isConfident ? "Disc identified: \(t)" : "Disc might be \(t) (not sure)")
-                }
-                self.autoStartRipping(for: drive)
-                if let resolution = resolution {
-                    self.askWhichFilm(for: drive, resolution: resolution)
-                } else if let name = unfoundName {
-                    self.askWhichFilm(forUnfoundDisc: drive, ripName: name)
-                }
-            }
+            self.identifyFilm(on: drive, homeVideoIfUnfound: false)
         }
     }
 
@@ -789,6 +769,7 @@ extension MainViewController: DriveDetectorDelegate {
             self.detectedDrives.removeAll { $0.mountPoint == drive.mountPoint }
             self.deferredEjects.remove(devicePath: drive.devicePath)
             self.discLookups[drive.mountPoint] = nil
+            self.homeVideoMounts.remove(drive.mountPoint)
             self.resolvedDiscTitle = nil
             self.resolvedAlbum = nil
             self.appendToLog("Disc ejected: \(drive.displayName)")
