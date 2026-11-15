@@ -108,11 +108,18 @@ final class TitleChooserWindowController: NSWindowController {
             content.widthAnchor.constraint(equalToConstant: 480)
         ])
         window.contentView = content
-        if choice.labelIsGeneric { window.initialFirstResponder = searchField }
+        if choice.labelIsGeneric || choice.notFound { window.initialFirstResponder = searchField }
+        // Nothing matched the label: start from it, so a fix is a small edit.
+        if choice.notFound, let own = discOwnName { searchField.stringValue = own }
     }
 
     private var introText: String {
         if let intro = intro { return intro }
+        if choice.notFound {
+            return "Spindle couldn't find a film for the disc's label (\(choice.discName)), so it's ripping it as "
+                + "\(choice.guessedDisplayName). Search for the film, or type its name, and the files are renamed "
+                + "when the rip finishes."
+        }
         if choice.labelIsGeneric {
             return "The disc's label (\(choice.discName)) doesn't say which film it is, so Spindle is ripping "
                 + "it as \(choice.guessedDisplayName). Search for the film, or type its name, and the files are "

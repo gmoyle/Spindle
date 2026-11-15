@@ -8,25 +8,13 @@ extension MainViewController {
     /// thread; nil when nothing was found.
     func lookupDiscTitle(volumeName: String, completion: @escaping (DiscTitleQuery.Resolution?) -> Void) {
         let year = DiscTitleQuery.year(inVolumeName: volumeName)
-        resolveTitle(candidates: DiscTitleQuery.candidates(fromVolumeName: volumeName), year: year,
-                     provider: MetadataProviders.movies, completion: completion)
-    }
-
-    private func resolveTitle(candidates: [String], year: String?, provider: MovieMetadataProvider,
-                              completion: @escaping (DiscTitleQuery.Resolution?) -> Void) {
-        guard let query = candidates.first else {
-            DispatchQueue.main.async { completion(nil) }
-            return
-        }
-        appendToLog("Looking up '\(query)' on \(provider.name)...")
-        provider.searchMovies(query: query) { [weak self] matches in
-            if let resolution = DiscTitleQuery.resolve(query: query, matches: matches, year: year) {
-                DispatchQueue.main.async { completion(resolution) }
-            } else {
-                self?.resolveTitle(candidates: Array(candidates.dropFirst()), year: year, provider: provider,
-                                   completion: completion)
-            }
-        }
+        let provider = MetadataProviders.movies
+        DiscTitleQuery.lookUp(candidates: DiscTitleQuery.candidates(fromVolumeName: volumeName), year: year,
+                              provider: provider,
+                              onSearch: { [weak self] query in
+                                  self?.appendToLog("Looking up '\(query)' on \(provider.name)...")
+                              },
+                              completion: { resolution in DispatchQueue.main.async { completion(resolution) } })
     }
 
     /// After an unsure lookup queued `drive`: ask which film it is. TV season
@@ -48,6 +36,15 @@ extension MainViewController {
                      discOwnName: nil)
     }
 
+    /// A disc whose label found nothing ("FIGHTCLB"): it rips under the label
+    /// as a film name, and the window asks for the real one. Not for TV
+    /// season discs, which are named episode by episode.
+    func askWhichFilm(forUnfoundDisc drive: OpticalDrive, ripName: String) {
+        let choice = TitleChoice(discName: drive.name, guessedName: ripName, choices: [])
+        choice.notFound = true
+        askWhichFilm(for: drive, choice: choice, discOwnName: ripName)
+    }
+
     private func askWhichFilm(for drive: OpticalDrive, choice: TitleChoice, discOwnName: String?) {
         // Only a disc that was just queued (not one skipped as already ripped).
         guard conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint),
@@ -55,7 +52,7 @@ extension MainViewController {
               !testingUtils.isRunningInTestEnvironment else { return }
         choice.jobId = job.id
         titleChoices.append(choice)
-        appendToLog(choice.labelIsGeneric
+        appendToLog(choice.labelIsGeneric || choice.notFound
             ? "\(choice.discName) doesn't say which film it is; ripping it as \(choice.guessedDisplayName). "
               + "Name it in the “Which film is this?” window."
             : "Not sure which film \(drive.name) is; ripping it as \(choice.guessedDisplayName). "
@@ -78,6 +75,15 @@ extension MainViewController {
     }
 
     /// "OCEANS ELEVEN 2001" → "Oceans Eleven (2001)": the label as a film name.
+    /// What a disc whose label found no film rips as: the label as a film name
+    /// ("I_ROBOT_16X9" → "I ROBOT"). Nil for a TV season disc ("FIREFLY_D1"),
+    /// which keeps its label and is named episode by episode.
+    static func unfoundRipName(forLabel label: String) -> String? {
+        let tv = TVDiscLabel(volumeName: label)
+        guard tv.season == nil, tv.disc == nil else { return nil }
+        return TitleRetitler.fileBase(discOwnName(label))
+    }
+
     static func discOwnName(_ label: String) -> String {
         let title = DiscTitleQuery.candidates(fromVolumeName: label).first ?? label
         return DiscTitleQuery.year(inVolumeName: label).map { "\(title) (\($0))" } ?? title

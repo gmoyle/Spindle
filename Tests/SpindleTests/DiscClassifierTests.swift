@@ -128,7 +128,9 @@ final class MovieMetadataTests: XCTestCase {
     func testExactTitleBeatsFirstHit() {
         let matches = [MovieMatch(title: "The Goonies 2", year: "2027"), MovieMatch(title: "The Goonies", year: "1985")]
         XCTAssertEqual(DiscTitleQuery.bestMatch(for: "the goonies", in: matches)?.displayName, "The Goonies (1985)")
-        XCTAssertEqual(DiscTitleQuery.bestMatch(for: "goonies", in: matches)?.title, "The Goonies 2")
+        // Labels often drop a leading "the" ("GOONIES" is "The Goonies").
+        XCTAssertEqual(DiscTitleQuery.bestMatch(for: "goonies", in: matches)?.title, "The Goonies")
+        XCTAssertEqual(DiscTitleQuery.bestMatch(for: "goonie", in: matches)?.title, "The Goonies 2", "else first hit")
     }
 
     func testParsesOMDbSearch() {

@@ -81,7 +81,11 @@ already ripped** on, a known disc is ejected without ripping, unless:
 
 Rips are named `Movie (Year)/Movie (Year).mkv`, from a lookup on the disc's label.
 Labels can't hold apostrophes, so `OCEANS_ELEVEN_2001` is also searched as "Ocean's
-Eleven", and a year on the label picks between a film and its remake.
+Eleven", and a year on the label picks between a film and its remake. Packaging words
+are left out of the search (`16X9`, `LB`, `WIDE`, `WS`, `NA`, `N_AMERICA`), a sequel's
+number is kept and also tried as a Roman numeral (`AMERICAN_PIE2` → "American Pie 2",
+`MI3` → "Mission: Impossible III"), and a long label that was cut short is also
+searched without its last word (`BILL_AND_TEDS_EXCELLENT_ADVEN`).
 
 **Which film is this?** When the lookup isn't sure (nothing has the label's exact
 title, or two films share it and the label has no year), the disc starts ripping
@@ -97,9 +101,13 @@ year at the end becomes `(Year)`: "Something's Gotta Give 2003" names it
 `Something's Gotta Give (2003)`.
 
 Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS`, a catalog number such as
-`23604`, or similar, which says nothing about the film. Spindle doesn't look those up (it would only find unrelated
+`23604`, the studio (`SONY`, `WARNER`), `UNDEFINED`, or similar, which says nothing about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the
 search box ready, so you can name it.
+
+When a label finds nothing at all (short labels like `FIGHTCLB` or `HARRYMET`), the
+disc rips under the label and the window opens with the label in the search box, so
+you can correct it ("Fight Club") and search.
 
 ### Exact matches in Plex
 
