@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Photo and data discs are told apart by their contents, so two discs both labelled `CDROM` aren't mistaken for each other.
 - Finished encodes moved to another volume (a NAS) now land under a hidden name and are renamed into place, so a media server never sees half a file.
 
+### 📂 Import Media
+- **Import Media…** (under Settings in the main window) imports a drive or folder as if each thing in it were a disc. Pick a drive, folders or disc images, and Spindle lists what it found and asks before importing:
+  - copied DVDs, Blu-rays and HD DVDs (a folder holding `VIDEO_TS`, `BDMV` or `HVDVD_TS`) and disc images (`.iso`, `.img`) are ripped like the disc: looked up, named, and filed in Movies or TV Shows;
+  - folders of photos are filed by date like a photo disc, skipping photos already in the library;
+  - folders of other files are copied into Imported Discs.
+- One import is read at a time. Each shows as a line at the top of the window with its own Cancel, and anything imported before is skipped.
+- Disc images are mounted read-only and out of sight, and unmounted when read. Copied DVD folders are read with MakeMKV, so it must be installed.
+- MakeMKV opens the optical drives whenever it runs, even to read files, so an import that uses it waits while a disc is being ripped, and a disc inserted during it waits for it.
+
 ### 📺 TV series
 - **TV season discs are ripped episode by episode and named**: Spindle recognizes a season disc from its title lengths, rips every episode (a DVD used to rip only the longest title, and a Blu-ray skipped anything under an hour), skips the "play all" title, and keeps extras only with bonus features on.
 - The series and season come from the disc label (`THE_OFFICE_S2_D3`, `FIREFLY_D1`) and a TMDB or OMDb lookup. Episodes are filed as `TV Shows/Show (Year)/Season 01/Show (Year) - S01E05 - Title.mkv`, extras in the show's `Featurettes` folder.

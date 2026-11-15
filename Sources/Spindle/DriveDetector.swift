@@ -102,6 +102,8 @@ class DriveDetector {
 
     private func handleVolumeMount(url: URL) {
         let path = url.path
+        // A disc image Import Media mounted: it's imported already.
+        guard !ImportSources.isImportMount(path) else { return }
         print("[DriveDetector] Volume mounted: \(path)")
         // Classifying can run diskutil and walk a data disc's files: keep it off
         // the main thread, then report back on it.

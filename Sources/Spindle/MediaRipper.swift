@@ -444,6 +444,8 @@ enum MediaRipperError: LocalizedError, Equatable {
     case deviceNotFound
     /// A disc kind Spindle recognizes but can't import yet.
     case importNotSupportedYet(MediaRipper.MediaType)
+    /// A copied DVD folder: only MakeMKV can read one (there's no device).
+    case importNeedsMakeMKV
 
     var errorDescription: String? {
         switch self {
@@ -467,6 +469,8 @@ enum MediaRipperError: LocalizedError, Equatable {
             return "DVD/Blu-ray device not found"
         case .importNotSupportedYet(let kind):
             return "Importing \(kind.displayName.lowercased())s isn't supported yet."
+        case .importNeedsMakeMKV:
+            return "Importing a DVD folder needs MakeMKV. Install it, or import a disc image (.iso) instead."
         }
     }
 }

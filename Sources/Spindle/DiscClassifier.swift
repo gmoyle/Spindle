@@ -24,7 +24,7 @@ enum DiscClassifier {
     static let maxFilesScanned = 5000
 
     static func classify(volumeAt path: String,
-                         isOpticalMedia: (String) -> Bool = DriveDetector.isOpticalMedia,
+                         isOpticalMedia: (String) -> Bool = isOpticalOrImported,
                          fileManager: FileManager = .default) -> DiscKind {
         func has(_ name: String) -> Bool {
             fileManager.fileExists(atPath: (path as NSString).appendingPathComponent(name))
@@ -39,7 +39,9 @@ enum DiscClassifier {
 
         let topLevel = ((try? fileManager.contentsOfDirectory(atPath: path)) ?? [])
             .filter { !$0.hasPrefix(".") || $0 == ".TOC.plist" }
-        if isAudioCD(topLevel: topLevel) { return .audioCD }
+        // An imported folder of AIFFs is only a CD's rip with the CD's track list.
+        if isAudioCD(topLevel: topLevel),
+           topLevel.contains(".TOC.plist") || !ImportSources.shared.contains(path) { return .audioCD }
 
         let visible = topLevel.filter { !$0.hasPrefix(".") }
         guard !visible.isEmpty, isOpticalMedia(path) else { return .unknown }
@@ -48,6 +50,12 @@ enum DiscClassifier {
         let (files, photos) = countFiles(under: path, fileManager: fileManager)
         guard files > 0 else { return .dataDisc }
         return Double(photos) / Double(files) >= photoShareThreshold ? .photoDisc : .dataDisc
+    }
+
+    /// Optical media, or a folder or disc image being imported (Import Media),
+    /// whose plain files are imported the way a photo or data disc's are.
+    static func isOpticalOrImported(_ path: String) -> Bool {
+        ImportSources.shared.contains(path) || DriveDetector.isOpticalMedia(at: path)
     }
 
     /// macOS mounts an audio CD (cddafs) as one AIFF file per track plus a

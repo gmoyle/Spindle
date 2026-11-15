@@ -87,6 +87,11 @@ class MainViewController: NSViewController {
     /// Discs (by mount point) to import as home videos though they're pressed:
     /// detected as home-made, or marked so in the "Which film is this?" window.
     internal var homeVideoMounts: Set<String> = []
+    /// Import Media: what's left to import, and the one being read (its mount
+    /// point or image path).
+    internal var pendingImports: [ImportUnit] = []
+    internal var activeImport: String?
+    internal var importMediaButton: NSButton!
     /// The device each disc was mounted from, by mount point, kept after an
     /// unmount so a disc remounted under a new name is recognised.
     internal var mountDevices: [String: String] = [:]
@@ -256,6 +261,12 @@ class MainViewController: NSViewController {
 
         // Opens the non-blocking Movie/TV routing review. Title carries a badge
         // count so pending decisions are visible without blocking rips.
+        importMediaButton = NSButton(title: "Import Media…", target: self, action: #selector(importMedia))
+        importMediaButton.translatesAutoresizingMaskIntoConstraints = false
+        importMediaButton.toolTip = "Import copied DVDs and Blu-rays, disc images, photos and other files "
+            + "from a drive or folder, as if each were a disc"
+        view.addSubview(importMediaButton)
+
         reviewRipsButton = NSButton(title: "Review Rips", target: self, action: #selector(showRoutingReview))
         reviewRipsButton.translatesAutoresizingMaskIntoConstraints = false
         reviewRipsButton.isHidden = true  // shown only when items are pending
@@ -563,7 +574,9 @@ class MainViewController: NSViewController {
 
     @objc private func refreshDrives() {
         appendToLog("Scanning for discs...")
+        // Imports aren't in a drive: keep them.
         detectedDrives = driveDetector.detectOpticalDrives()
+            + detectedDrives.filter { ImportSources.shared.contains($0.mountPoint) }
         updateDriveDropdown()
 
         if detectedDrives.isEmpty {
@@ -718,7 +731,7 @@ extension MainViewController: DriveDetectorDelegate {
                 self.askPhotoDestinationIfNeeded { proceed in
                     if proceed {
                         self.autoStartRipping(for: drive)
-                    } else {
+                    } else if !self.finishImport(at: drive.mountPoint) {
                         self.appendToLog("Photo disc left in the drive. Click Start Ripping to import it later.")
                     }
                 }
@@ -1225,7 +1238,14 @@ extension MainViewController: DriveDetectorDelegate {
     }
 
     internal func autoStartRipping(for drive: OpticalDrive) {
-        guard settingsManager.autoRipEnabled else {
+        // An import that ends here without a rip (skipped, or can't start) is done.
+        let isImport = ImportSources.shared.contains(drive.mountPoint)
+        defer {
+            if isImport, !conversionQueue.hasActiveJob(forSourcePath: drive.mountPoint) {
+                finishImport(at: drive.mountPoint)
+            }
+        }
+        guard settingsManager.autoRipEnabled || isImport else {
             appendToLog("Auto-ripping is disabled. Click 'Start Ripping' to manually start ripping.")
             return
         }
@@ -1254,7 +1274,7 @@ extension MainViewController: DriveDetectorDelegate {
             guard blurayDecryptionReady() else {
                 appendToLog("Blu-ray detected but no decryption backend is available.")
                 showBluRaySetupAlert()
-                if settingsManager.autoEjectEnabled { ejectCurrentDisk() }
+                if settingsManager.autoEjectEnabled, !isImport { ejectCurrentDisk() }
                 return
             }
         }
@@ -1305,6 +1325,8 @@ extension MainViewController: DriveDetectorDelegate {
 
 extension MainViewController: ConversionQueueEjectionDelegate {
     func queueShouldEjectDisc(sourcePath: String) {
+        // An import is read: it's done, whatever the eject setting.
+        if finishImport(at: sourcePath) { return }
         // Only eject if auto-eject is enabled
         guard settingsManager.autoEjectEnabled else {
             appendToLog("Disc reading complete. Auto-eject is disabled - manual ejection required.")

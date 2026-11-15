@@ -162,6 +162,13 @@ swiftlint lint
   another drive is being read, MakeMKV opens its disc by device (`dev:/dev/rdiskN`) instead,
   and a read starting during an enumeration waits for it. If `dev:` fails, the later read
   waits for the earlier one and enumerates.
+- **Imports never touch a device.** Import Media (`MainViewController+Import`, `MediaImport.swift`)
+  presents folders and disc images as discs. `ImportSources` lists them: MakeMKV opens them as
+  `file:` (`makeMKVSpec`), `findRawDVDDevice` gives a folder no device (diskutil would name the
+  host disk) and a mounted image only its own, and an "eject" ends the import (`finishImport`).
+  makemkvcon opens every optical drive on start even for `file:` (and with `--noscan`), so
+  `MakeMKVBackend.whileNoDiscIsRead` runs it only when no disc is being read, holding the
+  enumeration lock.
 - **Release the device before ejecting.** `dvdDecryptor.closeDevice()` must run before the eject
   request, or the eject fails as busy.
 - **Settings window tabs**: `NSTabViewItem.view` must be the scroll view itself. Wrapping it in
