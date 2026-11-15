@@ -173,12 +173,10 @@ extension MainViewController: ConversionQueueDelegate {
         queueEncodePhase = false
         totalRipSizeBytes = 0
         showReadingProgress()
-        // Keep the button live as a Cancel control so the user can stop a rip in
-        // progress (queue-driven rips, i.e. all Blu-ray, had no cancel before).
-        ripButton.isEnabled = true
-        ripButton.title = "Cancel Rip"
+        // Each disc's line at the top has its own Cancel while it rips.
+        ripButton.isEnabled = false
         queueRipInProgress = true
-        setDiscStatus(readingJobIds.count > 1 ? "Reading \(readingJobIds.count) discs…" : "Reading disc…")
+        reloadDiscLines()
     }
 
     /// `jobId` no longer reads a disc. Returns true when another disc still is,
@@ -189,7 +187,6 @@ extension MainViewController: ConversionQueueDelegate {
         readSizes[jobId] = nil
         guard !readingJobIds.isEmpty else { return false }
         showReadingProgress()
-        setDiscStatus(readingJobIds.count > 1 ? "Reading \(readingJobIds.count) discs…" : "Reading disc…")
         return true
     }
 
@@ -202,8 +199,9 @@ extension MainViewController: ConversionQueueDelegate {
         queueRipInProgress = false
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = "Disc read complete — encoding in background..."
-        setDiscStatus("Encoding…")
         ripButton.title = "Start Ripping"
+        ripButton.isEnabled = true
+        reloadDiscLines()
     }
 
     func queueDidFailExtraction(jobId: UUID, error: Error) {
@@ -229,7 +227,7 @@ extension MainViewController: ConversionQueueDelegate {
         progressIndicator.doubleValue = 0
         progressStatusLabel.isHidden = false
         progressStatusLabel.stringValue = phase2Label(forJob: jobId) + "..."
-        setDiscStatus(isCopyOnly(jobId) ? "Filing…" : "Encoding…")
+        reloadDiscLines()
     }
 
     /// "Encoding to FLAC" for a music CD, "Encoding to MKV" for video,
@@ -255,6 +253,7 @@ extension MainViewController: ConversionQueueDelegate {
             appendToLog("…and \(outputFiles.count - shown.count) more.")
         }
         showCompletionNotification()
+        reloadEarlierRips()
         if extractingJobId == nil { resetRipUI() }
     }
 

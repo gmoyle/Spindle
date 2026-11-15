@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🗂 Main window
 - **Discs list**: the main window lists every disc in a drive and every rip, with the disc's label, the name it's ripped as, its status and progress. Each rip that's queued, reading or encoding has its own **Cancel** button, so with two drives you stop just the disc you mean.
+- **A line per disc at the top**: the top of the window lists each disc in a drive on its own line ("Better Off Dead (DVD) - Reading disc… 40%") instead of "2 discs", with a **Cancel** right beside the line while that disc rips. Start Ripping no longer turns into Cancel Rip.
+- **The Discs list keeps earlier rips**: after a restart or an update, every rip from before is still listed (newest first, below this session's), with its current name and when it finished. Earlier rips can be named, shown in Finder, or removed from the list; removing one doesn't make the disc rip again.
+- **Name a rip from the Discs list**: double-click a rip (or right-click ▸ **Which Film Is This…**) to name it while it's reading or encoding, or after it's finished. The list shows the picked name at once.
+- **Films on more than one disc**: "Which film is this?" asks **This disc is:** the film, Disc 1–4 of it, or a bonus disc. Discs of one film file into one folder as `Title (Year) - part1.mkv`, `- part2.mkv` (played by Plex as one film); a bonus disc's videos go into the film's `Featurettes` folder as extras. Fixes a bonus disc or second disc filed beside the film as "Version 2".
 - **Rips Folder moved to Settings** (Output & Routing): where films and TV seasons are ripped before routing. The main window's Output Directory field is gone; it didn't show where music, photo, data or home-video discs go anyway. Your existing folder is kept.
 
 ### 🖼 Local metadata

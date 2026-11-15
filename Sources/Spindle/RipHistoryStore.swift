@@ -129,6 +129,23 @@ final class RipHistoryStore {
         save(all)
     }
 
+    /// Every rip recorded, newest first.
+    func allEntries() -> [RipHistoryEntry] {
+        lock.lock(); defer { lock.unlock() }
+        return load().values.sorted { $0.completedAt > $1.completedAt }
+    }
+
+    /// Point `volumeName`'s rip at `oldLocation` to `newLocation`: for one disc
+    /// of a film moved out of a folder it shared with another disc.
+    func updateOutputLocation(volumeName: String, from oldLocation: String, to newLocation: String) {
+        lock.lock(); defer { lock.unlock() }
+        var all = load()
+        guard let key = all.first(where: { $0.value.outputLocation == oldLocation
+                                            && $0.value.volumeName == volumeName })?.key else { return }
+        all[key]?.outputLocation = newLocation
+        save(all)
+    }
+
     /// Remove an entry (e.g. user wants to force a re-rip permanently).
     func remove(identity: String) {
         lock.lock(); defer { lock.unlock() }

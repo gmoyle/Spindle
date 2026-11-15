@@ -6,6 +6,11 @@ class MainViewController: NSViewController {
     // UI Components - internal for extension access
     internal var titleLabel: NSTextField!
     internal var sourceLabel: NSTextField!
+    /// A line per disc in a drive, each with its Cancel (`reloadDiscLines`).
+    internal var discLinesStack: NSStackView!
+    internal var shownDiscLines: [DiscStatusLine] = []
+    /// What a disc with no rip under way says ("Ready to rip").
+    internal var idleDiscStatus = "Ready to rip"
     internal var sourceDropDown: NSPopUpButton!
     internal var refreshDrivesButton: NSButton!
     internal var browseSourceButton: NSButton!
@@ -65,6 +70,12 @@ class MainViewController: NSViewController {
     /// Unsure film lookups waiting for the user's pick, and their windows.
     internal var titleChoices: [TitleChoice] = []
     internal var titleChooserWindows: [TitleChooserWindowController] = []
+    /// Names picked for rips this session ("Se7en (1995) · Disc 2"), by job.
+    internal var ripNames: [UUID: String] = [:]
+    /// Where a renamed rip's files are now, by job.
+    internal var ripFolders: [UUID: String] = [:]
+    /// Rips from earlier sessions, from the rip history (`reloadEarlierRips`).
+    internal var earlierRips: [RipHistoryEntry] = []
     internal var driveDetector = DriveDetector.shared
     internal var settingsManager = SettingsManager.shared
     internal var resolvedDiscTitle: String? = nil
@@ -168,6 +179,7 @@ class MainViewController: NSViewController {
         setupRipButton()
         setupProgressIndicator()
         setupQueueTable()
+        reloadEarlierRips()
         setupLogTextView()
         setupConstraints()
     }
@@ -181,8 +193,7 @@ class MainViewController: NSViewController {
 
     private func setupSourceSection() {
         sourceLabel = NSTextField(labelWithString: "Detected Disc:")
-        sourceLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(sourceLabel)
+        setupDiscLines()
 
         sourceDropDown = NSPopUpButton()
         sourceDropDown.translatesAutoresizingMaskIntoConstraints = false
@@ -370,6 +381,8 @@ class MainViewController: NSViewController {
         queueTableView.dataSource = self
         queueTableView.delegate = self
         queueTableView.menu = makeQueueContextMenu()
+        queueTableView.target = self
+        queueTableView.doubleAction = #selector(queueChooseFilm(_:))
 
         queueScrollView = NSScrollView()
         queueScrollView.hasVerticalScroller = true
@@ -569,14 +582,8 @@ class MainViewController: NSViewController {
     /// "Cancelling…", etc. No-op when no disc is present (the empty-state message
     /// is handled by updateDriveDropdown).
     internal func setDiscStatus(_ status: String) {
-        guard let drive = detectedDrives.first else { return }
-        if detectedDrives.count > 1 {
-            sourceLabel.stringValue = "\(detectedDrives.count) discs - \(status)"
-            return
-        }
-        let driveTypeString = drive.type.displayName
-        let displayTitle = discLookups[drive.mountPoint]?.title ?? resolvedDiscTitle ?? drive.name
-        sourceLabel.stringValue = "\(displayTitle) (\(driveTypeString)) - \(status)"
+        idleDiscStatus = status
+        reloadDiscLines()
     }
 
     func updateDriveDropdown() {
@@ -587,8 +594,8 @@ class MainViewController: NSViewController {
             sourceLabel.stringValue = "No disc detected – insert a DVD, Blu-ray, CD or data disc"
             ripButton.isEnabled = false
         } else {
-            setDiscStatus(queueRipInProgress ? "Ripping…" : "Ready to rip")
-            ripButton.isEnabled = true
+            setDiscStatus("Ready to rip")
+            ripButton.isEnabled = !queueRipInProgress
         }
         
         // The dropdown is now hidden, but we'll keep the logic for advanced users
@@ -1265,6 +1272,8 @@ extension MainViewController: DriveDetectorDelegate {
             } else if let existingDir = findCompletedRip(
                 for: drive, mediaType: mediaType, configuration: configuration) {
                 appendToLog("Already ripped with current settings — skipping: \(existingDir)")
+                Logger.shared.log("Skipped \(drive.displayName): already ripped with current settings (\(existingDir))"
+                    + (settingsManager.autoEjectEnabled ? "; ejecting" : ""), level: .info, category: .general)
                 appendToLog("Hold ⌥ while inserting, or click Start Ripping, to rip again.")
                 if settingsManager.autoEjectEnabled {
                     // Eject the disc that was just inserted — not whatever the

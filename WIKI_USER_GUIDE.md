@@ -106,6 +106,27 @@ Return to search again, or click **Use Typed Name** to name it exactly as typed.
 year at the end becomes `(Year)`: "Something's Gotta Give 2003" names it
 `Something's Gotta Give (2003)`.
 
+**The Discs list** shows the discs in the drives, this session's rips, and every
+earlier rip (from Spindle's rip history), so it survives restarts and updates. Right-click
+an earlier rip to name it, show it in Finder, or remove it from the list (the disc is
+still skipped as already ripped).
+
+**Wrong name, or noticed it later?** Double-click a rip in the Discs list (or
+right-click it and choose **Which Film Is This…**) to open the same window for a
+rip that's reading, encoding or finished. A finished rip is renamed straight away;
+one still ripping is renamed when it finishes. The list shows the new name at once.
+
+**Films on more than one disc.** The window's **This disc is:** menu says which disc
+of the film this is:
+- **Disc 1 of the film**, **Disc 2 of the film**…: the discs file into one folder
+  as `Title (Year) - part1.mkv`, `Title (Year) - part2.mkv`, which Plex plays as
+  one film. A film already there from the other disc becomes `part1`.
+- **A bonus disc (extras only)**: its videos go into the film's `Featurettes`
+  folder, which Plex shows as the film's extras, not as another version of it.
+
+This also fixes a second disc that was filed beside the film as an edition
+("Version 2").
+
 Some discs are labelled only `DVD_VIDEO`, `VIDEO_TS`, a catalog number such as
 `23604`, the studio (`SONY`, `WARNER`), `UNDEFINED`, or similar, which says nothing about the film. Spindle doesn't look those up (it would only find unrelated
 titles): the disc rips as `Untitled Disc <date time>` and the window opens with the

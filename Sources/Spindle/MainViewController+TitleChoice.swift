@@ -51,6 +51,7 @@ extension MainViewController {
               let job = conversionQueue.getAllJobs().last(where: { $0.sourcePath == drive.mountPoint }),
               !testingUtils.isRunningInTestEnvironment else { return }
         choice.jobId = job.id
+        choice.volumeLabel = (job.sourcePath as NSString).lastPathComponent
         titleChoices.append(choice)
         appendToLog(choice.labelIsGeneric || choice.notFound
             ? "\(choice.discName) doesn't say which film it is; ripping it as \(choice.guessedDisplayName). "
@@ -59,7 +60,7 @@ extension MainViewController {
               + "Pick the right one in the “Which film is this?” window.")
 
         let chooser = TitleChooserWindowController(choice: choice, discOwnName: discOwnName,
-                                                   offersHomeVideo: drive.type == .dvd)
+                                                   offersHomeVideo: drive.type == .dvd, offersParts: true)
         chooser.onHomeVideo = { [weak self, weak choice] in
             guard let self = self, let choice = choice else { return }
             self.fileAsHomeVideo(choice)
@@ -71,12 +72,113 @@ extension MainViewController {
                 self.titleChoices.removeAll { $0 === choice }
                 return
             }
-            choice.chosenName = name
-            self.appendToLog("\(choice.discName) will be named \(MovieMatch.displayName(ofLibraryName: name)).")
-            self.applyTitleChoiceIfReady(choice)
+            self.choose(name, for: choice)
         }
         titleChooserWindows.append(chooser)
         chooser.showWindow(nil)
+    }
+
+    /// The user named a rip: show the name now, and rename the files now or
+    /// when the rip finishes.
+    private func choose(_ name: String, for choice: TitleChoice) {
+        choice.chosenName = name
+        let shown = Self.ripDisplayName(name, part: choice.part)
+        if let id = choice.jobId { ripNames[id] = shown }
+        appendToLog("\(choice.discName) will be named \(shown).")
+        applyTitleChoiceIfReady(choice)
+        reloadDiscList()
+    }
+
+    /// "Se7en (1995)", or "Se7en (1995) · Disc 2" for one disc of several.
+    static func ripDisplayName(_ name: String, part: DiscPart?) -> String {
+        let film = MovieMatch.displayName(ofLibraryName: name)
+        return part.map { "\(film) · \($0.label)" } ?? film
+    }
+
+    // MARK: - From the Discs list
+
+    /// "Which Film Is This…" on a rip in the Discs list: reading, encoding or
+    /// finished. The answer renames it now if it's finished, else when it is.
+    func chooseFilm(forJob job: ConversionQueue.ConversionJob) {
+        guard job.mediaType.isVideo, job.configuration.homeVideo == nil else {
+            appendToLog("Only film rips can be named.")
+            return
+        }
+        if let open = titleChooserWindows.first(where: { $0.window?.isVisible == true && $0.jobId == job.id }) {
+            open.showWindow(nil)
+            return
+        }
+        let label = (job.sourcePath as NSString).lastPathComponent
+        let choice: TitleChoice
+        if let pending = titleChoices.first(where: { $0.jobId == job.id }) {
+            choice = pending
+        } else if DiscListRow.isActive(job.status), let name = job.configuration.plexName {
+            choice = TitleChoice(discName: label, guessedName: name, choices: [])
+        } else if job.status == .completed, let folder = ripFolders[job.id] ?? Self.singleFolder(job.outputFiles) {
+            choice = TitleChoice(discName: label, guessedName: (folder as NSString).lastPathComponent, choices: [])
+            choice.finishedFolder = folder
+        } else {
+            appendToLog("\(job.discTitle) isn't in one film folder, so it can't be renamed here.")
+            return
+        }
+        choice.jobId = job.id
+        choice.volumeLabel = label
+        presentChooser(for: choice, label: label)
+    }
+
+    /// "Which Film Is This…" on a rip from an earlier session: renamed straight
+    /// away, as it's finished.
+    func chooseFilm(forEarlierRip entry: RipHistoryEntry) {
+        let folder = entry.outputLocation
+        guard Self.isFilmFolder(folder) else {
+            appendToLog("\(entry.title) isn't in a film folder, so it can't be renamed here.")
+            return
+        }
+        if let open = titleChooserWindows.first(where: { $0.window?.isVisible == true && $0.folder == folder }) {
+            open.showWindow(nil)
+            return
+        }
+        let choice = TitleChoice(discName: entry.volumeName, guessedName: (folder as NSString).lastPathComponent,
+                                 choices: [])
+        choice.finishedFolder = folder
+        choice.volumeLabel = entry.volumeName
+        presentChooser(for: choice, label: entry.volumeName)
+    }
+
+    /// A folder holding a film rip named after the folder.
+    static func isFilmFolder(_ folder: String) -> Bool {
+        !folder.isEmpty && TitleRetitler.isMovieFolder(folder, base: (folder as NSString).lastPathComponent)
+    }
+
+    private func presentChooser(for choice: TitleChoice, label: String) {
+        if !titleChoices.contains(where: { $0 === choice }) { titleChoices.append(choice) }
+        let generic = DiscTitleQuery.isGenericLabel(label)
+        let chooser = TitleChooserWindowController(
+            choice: choice, discOwnName: generic ? nil : Self.discOwnName(label),
+            intro: "Which film is \(label)? It's \(choice.finishedFolder == nil ? "ripping" : "filed") as "
+                + "\(choice.guessedDisplayName). Search for the film, or type its name, and the files are "
+                + "renamed\(choice.finishedFolder == nil ? " when the rip finishes" : ""). For a film on more "
+                + "than one disc, say which disc this is.",
+            keepTitle: "Cancel", searchText: generic ? nil : Self.discOwnName(label), offersParts: true)
+        chooser.jobId = choice.jobId
+        chooser.folder = choice.finishedFolder
+        chooser.onChoose = { [weak self, weak choice] (name: String?) in
+            guard let self = self, let choice = choice else { return }
+            guard let name = name else {
+                if choice.chosenName == nil, choice.finishedFolder != nil { self.dropTitleChoice(choice) }
+                return
+            }
+            self.choose(name, for: choice)
+        }
+        titleChooserWindows.append(chooser)
+        chooser.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// The one folder all these files are in, if there is one.
+    static func singleFolder(_ files: [String]) -> String? {
+        let folders = Set(files.map { ($0 as NSString).deletingLastPathComponent })
+        return folders.count == 1 ? folders.first : nil
     }
 
     /// "OCEANS ELEVEN 2001" → "Oceans Eleven (2001)": the label as a film name.
@@ -125,13 +227,17 @@ extension MainViewController {
         }
         guard let name = choice.chosenName, let folder = choice.finishedFolder else { return }
         dropTitleChoice(choice)
-        let oldName = choice.guessedName
+        let oldName = choice.guessedName, part = choice.part, volume = choice.volumeLabel, jobId = choice.jobId
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = Result { try TitleRetitler.retitle(folder: folder, from: oldName, to: name) }
+            let result = Result {
+                try TitleRetitler.refile(folder: folder, volume: volume, from: oldName, to: name, part: part)
+            }
             DispatchQueue.main.async {
                 switch result {
                 case .success(let renamed):
-                    self?.appendToLog("Renamed \(oldName) to \(name): \(renamed)")
+                    if let id = jobId { self?.ripFolders[id] = renamed }
+                    self?.reloadEarlierRips()
+                    self?.appendToLog("Renamed \(oldName) to \(Self.ripDisplayName(name, part: part)): \(renamed)")
                     Logger.shared.log("Retitled \(folder) → \(renamed)", level: .info, category: .general)
                 case .failure(let error):
                     self?.appendToLog("Couldn't rename \(oldName): \(error.localizedDescription)")

@@ -12,29 +12,30 @@ extension MainViewController {
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
-            // Source Label
-            sourceLabel.bottomAnchor.constraint(equalTo: sourceDropDown.topAnchor, constant: -5),
-            sourceLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-
-            // Source Path
-            sourceDropDown.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 40),
-            sourceDropDown.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            sourceDropDown.trailingAnchor.constraint(
-                equalTo: refreshDrivesButton.leadingAnchor, constant: -10
+            // A line per disc, each with its Cancel
+            discLinesStack.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
+            discLinesStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            discLinesStack.trailingAnchor.constraint(
+                lessThanOrEqualTo: refreshDrivesButton.leadingAnchor, constant: -12
             ),
 
-            refreshDrivesButton.topAnchor.constraint(equalTo: sourceDropDown.topAnchor),
-            refreshDrivesButton.trailingAnchor.constraint(
-                equalTo: browseSourceButton.leadingAnchor, constant: -10
-            ),
+            // Refresh at the right of the first disc line, above Settings
+            refreshDrivesButton.topAnchor.constraint(equalTo: discLinesStack.topAnchor, constant: -3),
+            refreshDrivesButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             refreshDrivesButton.widthAnchor.constraint(equalToConstant: 80),
 
+            // The drive menu and Browse are hidden; they sit under the disc lines.
+            sourceDropDown.topAnchor.constraint(equalTo: discLinesStack.bottomAnchor, constant: 8),
+            sourceDropDown.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            sourceDropDown.trailingAnchor.constraint(
+                equalTo: browseSourceButton.leadingAnchor, constant: -10
+            ),
             browseSourceButton.topAnchor.constraint(equalTo: sourceDropDown.topAnchor),
             browseSourceButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             browseSourceButton.widthAnchor.constraint(equalToConstant: 80),
 
-            // Automation Settings — three checkboxes stacked, settings button at right
-            autoRipCheckbox.topAnchor.constraint(equalTo: sourceDropDown.bottomAnchor, constant: 20),
+            // Automation Settings — checkboxes stacked, settings button at right
+            autoRipCheckbox.topAnchor.constraint(equalTo: discLinesStack.bottomAnchor, constant: 20),
             autoRipCheckbox.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
 
             autoEjectCheckbox.topAnchor.constraint(equalTo: autoRipCheckbox.bottomAnchor, constant: 5),
